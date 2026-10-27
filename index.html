@@ -194,6 +194,25 @@
                         <span class="text-xl font-black text-sky-400 font-orbitron">10</span>
                     </button>
                 </div>
+
+                <!-- Special Challenges: always available, independent of campaign unlocks -->
+                <div class="mt-5 pt-4 border-t border-rose-500/30">
+                    <h3 class="text-sm font-black text-rose-300 tracking-widest mb-2">
+                        <i class="fa-solid fa-skull mr-1"></i> 特別挑戰・數量爆炸
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-3">不必通關前置關卡，直接挑戰三層樹狀結構；數字是設計目標上限，實際最糟步數仍需完整窮舉驗證。</p>
+                    <div class="grid grid-cols-3 gap-2 sm:gap-4">
+                        <button class="level-btn special-level-btn glass-btn py-3 px-1 sm:p-4 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer border-rose-500/40" data-level="11">
+                            <span class="text-[10px] text-rose-300 font-orbitron">special_01</span>
+                        </button>
+                        <button class="level-btn special-level-btn glass-btn py-3 px-1 sm:p-4 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer border-amber-500/40" data-level="12">
+                            <span class="text-[10px] text-amber-300 font-orbitron">special_02</span>
+                        </button>
+                        <button class="level-btn special-level-btn glass-btn py-3 px-1 sm:p-4 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer border-fuchsia-500/40" data-level="13">
+                            <span class="text-[10px] text-fuchsia-300 font-orbitron">special_03</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Rules Summary -->
@@ -359,6 +378,16 @@
             return createNode(kids);
         };
 
+        // 三層樹：根節點 → 中層分支 → 內層分支／蛇頭。
+        // 每個特別關卡仍維持 9 顆初始蛇頭，透過分支形狀提高增生層次。
+        const threeLayerBranch = (middleCount, innerLeafCount = 1) => {
+            const middle = [];
+            for (let i = 0; i < middleCount; i++) {
+                middle.push(createNode(Array.from({ length: innerLeafCount }, () => leaf())));
+            }
+            return createNode(middle);
+        };
+
         /* -------------------------------------------------------------------------
            關卡設計說明（maxChops = 「最糟狀況」下的最大砍擊次數，已用窮舉驗證）
            規則：砍掉分支頭 → 其頸部連同剩餘子樹「額外複製 2 份」接回祖父節點。
@@ -450,12 +479,42 @@
                 insight: "<b>第 10 關終極心得：</b>最終試煉！無論怎麼砍，911 次以內必定通關——這就是柯比-巴黎定理：九頭蛇再會長，也註定被消滅！",
                 buildTree: () => {
                     return [
-                        createNode([createNode([leaf()])]),   // ((.))
-                        deepBranch(1),                         // (.(.))
-                        deepBranch(2),                         // (..(.))
-                        deepBranch(2)                          // (..(.))
+                        createNode([createNode([leaf()])]),
+                        deepBranch(1),
+                        deepBranch(2),
+                        deepBranch(2)
                     ];
                 }
+            },
+            11: {
+                maxChops: 1999,
+                special: true,
+                insight: "<b>特別挑戰 I：</b>三層樹狀分支開始讓每次增生帶出更多後續分支。目標是把最糟砍擊次數控制在 2,000 次以下；此數值需以窮舉／程式驗證後才能視為嚴格上界。",
+                buildTree: () => [
+                    threeLayerBranch(2, 1),
+                    threeLayerBranch(2, 1),
+                    branch(5)
+                ]
+            },
+            12: {
+                maxChops: 5000,
+                special: true,
+                insight: "<b>特別挑戰 II：</b>三層分支增加內層蛇頭數，放大每次複製後的工作量。設計目標為約 5,000 次等級；實際最糟步數需經窮舉驗證。",
+                buildTree: () => [
+                    threeLayerBranch(2, 2),
+                    threeLayerBranch(2, 1),
+                    branch(3)
+                ]
+            },
+            13: {
+                maxChops: 10000,
+                special: true,
+                insight: "<b>特別挑戰 III：</b>三層結構搭配更多內層蛇頭，讓增生效應層層疊加。設計目標為約 10,000 次等級；實際最糟步數需經窮舉驗證。",
+                buildTree: () => [
+                    threeLayerBranch(2, 2),
+                    threeLayerBranch(2, 2),
+                    branch(1)
+                ]
             }
         };
 
@@ -486,15 +545,18 @@
         function refreshLevelButtons() {
             document.querySelectorAll('.level-btn').forEach(btn => {
                 const lv = parseInt(btn.getAttribute('data-level'));
-                const locked = lv > unlockedLevel;
+                const isSpecial = lv >= 11;
+                const locked = !isSpecial && lv > unlockedLevel;
                 btn.disabled = locked;
                 btn.classList.toggle('opacity-40', locked);
                 btn.classList.toggle('cursor-not-allowed', locked);
                 btn.classList.toggle('cursor-pointer', !locked);
-                const num = btn.querySelectorAll('span')[1];
-                num.innerHTML = locked
-                    ? '<i class="fa-solid fa-lock text-slate-500"></i>'
-                    : String(lv).padStart(2, '0');
+                if (!isSpecial) {
+                    const num = btn.querySelectorAll('span')[1];
+                    num.innerHTML = locked
+                        ? '<i class="fa-solid fa-lock text-slate-500"></i>'
+                        : String(lv).padStart(2, '0');
+                }
             });
         }
         let interactiveHeadMeshes = [];
@@ -757,7 +819,7 @@
         function addNeckInstances(startPos, endPos, isTerminal) {
             const midPos = startPos.clone().lerp(endPos, 0.5);
             const dir = endPos.clone().sub(startPos);
-            const perp = new THREE.Vector3(-dir.y, dir.x, dir.z).normalize().multiplyScalar(0.3);
+            const perp = new THREE.Vector3(-dir.y, dir.x, dir.z).normalize().multiplyScalar(0.42);
             midPos.add(perp);
 
             const curve = new THREE.QuadraticBezierCurve3(startPos, midPos, endPos);
@@ -876,10 +938,12 @@
                     const headMesh = create3DSnakeHeadMesh(rootNode.id);
                     headMesh.position.copy(rootPos);
                     headMesh.lookAt(rootPos.clone().add(normal));
+                    headMesh.userData.baseRotation = headMesh.rotation.clone();
+                    headMesh.userData.swayPhase = rootNode.id * 0.73;
                     hydraGroup.add(headMesh);
                     interactiveHeadMeshes.push(headMesh);
                 } else {
-                    buildBranchNode(rootNode, rootPos, normal, 1.1, 0);
+                    buildBranchNode(rootNode, rootPos, normal, 1.75, 0);
                 }
             });
 
@@ -897,6 +961,8 @@
                 const headMesh = create3DSnakeHeadMesh(node.id);
                 headMesh.position.copy(endPos);
                 headMesh.lookAt(endPos.clone().add(dirVector));
+                headMesh.userData.baseRotation = headMesh.rotation.clone();
+                headMesh.userData.swayPhase = node.id * 0.73;
                 hydraGroup.add(headMesh);
                 
                 interactiveHeadMeshes.push(headMesh);
@@ -925,7 +991,7 @@
                         .add(u.clone().multiplyScalar(Math.cos(phi) * Math.sin(tilt)))
                         .add(v.clone().multiplyScalar(Math.sin(phi) * Math.sin(tilt)))
                         .normalize();
-                    buildBranchNode(child, endPos, childDir, length * 0.82, depth + 1);
+                    buildBranchNode(child, endPos, childDir, length * 0.92, depth + 1);
                 });
             }
         }
@@ -1088,9 +1154,20 @@
             const noticeBody = document.getElementById('notice-body');
             const noticeTitle = document.getElementById('notice-title');
 
-            noticeTitle.innerText = `關卡 ${levelNum} 挑戰提示`;
+            const config = LEVEL_CONFIGS[levelNum];
+            noticeTitle.innerText = config.special
+                ? `特別挑戰 ${levelNum - 10}：數量爆炸`
+                : `關卡 ${levelNum} 挑戰提示`;
 
-            if (levelNum === 1) {
+            if (config.special) {
+                const target = levelNum === 11 ? '2,000 次以下' : (levelNum === 12 ? '約 5,000 次等級' : '約 10,000 次等級');
+                noticeBody.innerHTML = `
+                    <div class="text-rose-300 font-bold mb-1.5"><i class="fa-solid fa-bolt"></i> 柯比－巴黎數量爆炸挑戰</div>
+                    <p class="text-slate-200 leading-relaxed">本關可直接挑戰，初始有 <b>9 顆蛇頭</b>，樹狀結構包含三層節點。砍掉分支蛇頭後，所屬分支會複製兩份，複製後的子樹還可能再次增生。</p>
+                    <p class="mt-2 text-amber-300">步數目標：<b>${target}</b>。</p>
+                    <p class="mt-2 text-xs text-slate-400">注意：這是目前的設計目標，不代表已證明的最糟上界；若要宣稱嚴格保證，需對實際遊戲規則做完整驗證。</p>
+                `;
+            } else if (levelNum === 1) {
                 noticeBody.innerHTML = `
                     <div class="text-amber-400 font-bold mb-1.5"><i class="fa-solid fa-circle-info"></i> 第 1 關說明：</div>
                     <p class="text-sky-200 leading-relaxed">本關有 <b>9 顆初始蛇頭</b>，全部直接生長於星球根部。砍掉根部蛇頭即直接消滅，<b>不會增生</b>。</p>
@@ -1117,7 +1194,7 @@
 
         function showVictoryModal() {
             sfx.playWin();
-            if (currentLevel >= unlockedLevel && currentLevel < 10) {
+            if (!LEVEL_CONFIGS[currentLevel].special && currentLevel >= unlockedLevel && currentLevel < 10) {
                 unlockedLevel = currentLevel + 1;
                 saveProgress();
                 refreshLevelButtons();
@@ -1139,6 +1216,10 @@
             document.querySelectorAll('.level-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const level = parseInt(btn.getAttribute('data-level'));
+                    if (level > 10 && LEVEL_CONFIGS[level] && LEVEL_CONFIGS[level].special) {
+                        loadLevel(level);
+                        return;
+                    }
                     if (level > unlockedLevel) return;
                     loadLevel(level);
                 });
@@ -1189,8 +1270,13 @@
 
             const time = Date.now() * 0.003;
             interactiveHeadMeshes.forEach((head, idx) => {
-                head.rotation.z = Math.sin(time + idx) * 0.15;
-                head.rotation.y += Math.cos(time * 0.5 + idx) * 0.005;
+                // 以原始朝向為基準左右擺動，避免逐幀累加造成旋轉漂移。
+                // 頸部加長後，較大的慢速擺幅會更像蛇頭帶動長頸移動。
+                const base = head.userData.baseRotation || { x: 0, y: 0, z: 0 };
+                const phase = head.userData.swayPhase ?? idx * 0.73;
+                head.rotation.x = base.x + Math.sin(time * 0.72 + phase) * 0.19;
+                head.rotation.y = base.y + Math.sin(time * 0.58 + phase * 1.3) * 0.36;
+                head.rotation.z = base.z + Math.sin(time * 0.9 + phase) * 0.44;
             });
 
             renderer.render(scene, camera);
