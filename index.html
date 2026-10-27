@@ -814,17 +814,31 @@
         // 頸部環節與關節改用 InstancedMesh 一次畫完（整隻九頭蛇的頸部只需 3 次 draw call）
         let ringInstances = { terminal: [], normal: [] };
         let jointInstances = [];
+        // 保存部分頸環的曲線資料，讓頸部能低速彎動；大型關卡限制動畫數量以維持效能。
+        let neckMotionRecords = [];
+        let neckInstanceMeshes = { terminal: null, normal: null };
+        const MAX_ANIMATED_NECKS = 180;
+        const NECK_SEGMENTS = 8;
         const _dummy = new THREE.Object3D();
 
-        function addNeckInstances(startPos, endPos, isTerminal) {
+        function addNeckInstances(startPos, endPos, isTerminal, nodeId) {
             const midPos = startPos.clone().lerp(endPos, 0.5);
             const dir = endPos.clone().sub(startPos);
             const perp = new THREE.Vector3(-dir.y, dir.x, dir.z).normalize().multiplyScalar(0.42);
             midPos.add(perp);
 
             const curve = new THREE.QuadraticBezierCurve3(startPos, midPos, endPos);
-            const points = curve.getPoints(8);
-            const bucket = isTerminal ? ringInstances.terminal : ringInstances.normal;
+            const points = curve.getPoints(NECK_SEGMENTS);
+            const bucketName = isTerminal ? 'terminal' : 'normal';
+            const bucket = ringInstances[bucketName];
+            const animateThisNeck = neckMotionRecords.length < MAX_ANIMATED_NECKS;
+            const record = animateThisNeck ? {
+                start: startPos.clone(), end: endPos.clone(), isTerminal,
+                phase: (nodeId * 0.73) % (Math.PI * 2),
+                basePerp: perp.clone(),
+                side: new THREE.Vector3().crossVectors(dir.clone().normalize(), perp.clone().normalize()).normalize(),
+                firstIndex: bucket.length, segmentCount: NECK_SEGMENTS
+            } : null;
 
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
@@ -838,20 +852,22 @@
                 _dummy.updateMatrix();
                 bucket.push(_dummy.matrix.clone());
             }
+            if (record) neckMotionRecords.push(record);
         }
 
         function flushNeckInstances() {
             const S = getShared();
-            const make = (geo, mat, matrices) => {
+            const make = (geo, mat, matrices, bucketName = null) => {
                 if (matrices.length === 0) return;
                 const mesh = new THREE.InstancedMesh(geo, mat, matrices.length);
                 matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
                 mesh.instanceMatrix.needsUpdate = true;
                 mesh.frustumCulled = false;
                 hydraGroup.add(mesh);
+                if (bucketName) neckInstanceMeshes[bucketName] = mesh;
             };
-            make(S.ringGeo, S.ringMatTerminal, ringInstances.terminal);
-            make(S.ringGeo, S.ringMatNormal, ringInstances.normal);
+            make(S.ringGeo, S.ringMatTerminal, ringInstances.terminal, 'terminal');
+            make(S.ringGeo, S.ringMatNormal, ringInstances.normal, 'normal');
             const jointMats = jointInstances.map(pos => {
                 _dummy.position.copy(pos);
                 _dummy.rotation.set(0, 0, 0);
@@ -910,6 +926,8 @@
             interactiveHeadMeshes = [];
             ringInstances = { terminal: [], normal: [] };
             jointInstances = [];
+            neckMotionRecords = [];
+            neckInstanceMeshes = { terminal: null, normal: null };
 
             if (currentTreeRoots.length === 0) return;
             liteMode = countRemainingHeads(currentTreeRoots) > LITE_HEAD_THRESHOLD;
@@ -955,7 +973,7 @@
             const isTerminal = (!node.children || node.children.length === 0);
             const endPos = startPos.clone().add(dirVector.clone().multiplyScalar(length));
 
-            addNeckInstances(startPos, endPos, isTerminal);
+            addNeckInstances(startPos, endPos, isTerminal, node.id);
 
             if (isTerminal) {
                 const headMesh = create3DSnakeHeadMesh(node.id);
@@ -1271,12 +1289,37 @@
             const time = Date.now() * 0.003;
             interactiveHeadMeshes.forEach((head, idx) => {
                 // 以原始朝向為基準左右擺動，避免逐幀累加造成旋轉漂移。
-                // 頸部加長後，較大的慢速擺幅會更像蛇頭帶動長頸移動。
                 const base = head.userData.baseRotation || { x: 0, y: 0, z: 0 };
                 const phase = head.userData.swayPhase ?? idx * 0.73;
                 head.rotation.x = base.x + Math.sin(time * 0.72 + phase) * 0.19;
                 head.rotation.y = base.y + Math.sin(time * 0.58 + phase * 1.3) * 0.36;
                 head.rotation.z = base.z + Math.sin(time * 0.9 + phase) * 0.44;
+            });
+
+            // 頸部曲線的控制點緩慢左右漂移，讓彎曲沿著脖子傳遞，而不只是蛇頭旋轉。
+            // 僅動畫前 MAX_ANIMATED_NECKS 條頸部，避免大量增生時拖慢畫面。
+            neckMotionRecords.forEach(record => {
+                const mesh = neckInstanceMeshes[record.isTerminal ? 'terminal' : 'normal'];
+                if (!mesh) return;
+                // 以較慢的節奏移動頸部控制點，讓彎曲感沿整條脖子呈現；
+                // 每條脖子有不同相位，避免所有脖子同步搖晃。
+                const mid = record.start.clone().lerp(record.end, 0.5)
+                    .add(record.basePerp)
+                    .addScaledVector(record.side, Math.sin(time * 0.30 + record.phase) * 0.30)
+                    .addScaledVector(record.basePerp.clone().normalize(), Math.sin(time * 0.23 + record.phase * 1.4) * 0.15);
+                const points = new THREE.QuadraticBezierCurve3(record.start, mid, record.end).getPoints(record.segmentCount);
+                for (let i = 0; i < record.segmentCount; i++) {
+                    const p1 = points[i], p2 = points[i + 1];
+                    _dummy.position.copy(p1).lerp(p2, 0.5);
+                    _dummy.rotation.set(0, 0, 0);
+                    _dummy.scale.set(1, 1, 1);
+                    _dummy.updateMatrix();
+                    _dummy.lookAt(p2);
+                    _dummy.rotateX(Math.PI / 2);
+                    _dummy.updateMatrix();
+                    mesh.setMatrixAt(record.firstIndex + i, _dummy.matrix);
+                }
+                mesh.instanceMatrix.needsUpdate = true;
             });
 
             renderer.render(scene, camera);
