@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>九頭蛇數學遊戲 (The Hydra Game 3D)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+TC:wght@400;600;800&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.6);
+        }
+
+        .glass-btn {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-btn:hover:not(:disabled) {
+            background: rgba(14, 165, 233, 0.35);
+            border-color: #38bdf8;
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.6);
+            transform: translateY(-2px);
+        }
+
+        @keyframes slashAnim {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.3) rotate(-30deg); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.4) rotate(15deg); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) rotate(45deg); }
+        }
+
+        .slash-effect {
+            position: absolute;
+            pointer-events: none;
+            width: 120px;
+            height: 120px;
+            border-top: 5px solid #f43f5e;
+            border-right: 5px solid #fb7185;
+            border-radius: 50%;
+            filter: drop-shadow(0 0 15px #f43f5e);
+            animation: slashAnim 0.3s ease-out forwards;
+            z-index: 50;
+        }
+
+        html, body { height: 100%; }
+        body { height: 100vh; height: 100dvh; }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 12px rgba(56, 189, 248, 0.8), 0 0 24px rgba(56, 189, 248, 0.4);
+        }
+    </style>
+</head>
+<body class="w-screen relative">
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay Controls -->
+    <div class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-3 sm:p-4 md:p-6">
+        
+        <!-- Header -->
+        <header class="flex flex-wrap justify-between items-center gap-2 sm:gap-3 w-full max-w-6xl mx-auto pointer-events-none">
+            <div class="flex items-center space-x-3 pointer-events-auto">
+                <button id="btn-home" class="glass-btn p-2.5 sm:p-3 rounded-xl text-sky-400 hover:text-white flex items-center justify-center cursor-pointer">
+                    <i class="fa-solid fa-house text-lg"></i>
+                </button>
+                <div>
+                    <h1 class="text-lg sm:text-xl md:text-2xl font-black font-orbitron tracking-wider text-sky-400 glow-text flex items-center gap-2">
+                        <i class="fa-solid fa-dragon text-rose-500"></i> HYDRA 3D
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">九頭蛇數學遊戲 · 組合數學與無窮序數</p>
+                </div>
+            </div>
+
+            <!-- Stats Header HUD -->
+            <div id="hud-stats" class="hidden flex items-center justify-around w-full sm:w-auto gap-2 sm:gap-6 glass-panel px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl pointer-events-auto">
+                <div class="text-center flex-1 sm:flex-none">
+                    <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">當前關卡</span>
+                    <span id="hud-level" class="text-base sm:text-lg font-bold text-sky-400 font-orbitron">LV.01</span>
+                </div>
+                <div class="w-px h-8 bg-slate-700"></div>
+                <div class="text-center flex-1 sm:flex-none">
+                    <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">已砍次數</span>
+                    <span id="hud-chops" class="text-base sm:text-lg font-bold text-amber-400 font-orbitron">0</span>
+                </div>
+                <div class="w-px h-8 bg-slate-700"></div>
+                <div class="text-center flex-1 sm:flex-none">
+                    <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">剩餘蛇頭</span>
+                    <span id="hud-heads" class="text-base sm:text-lg font-bold text-rose-500 font-orbitron">9</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Control Hint -->
+        <div id="hud-controls-hint" class="hidden pointer-events-auto text-center mx-auto mb-1 sm:mb-2 max-w-[92%] glass-panel px-4 sm:px-5 py-2 rounded-2xl sm:rounded-full text-[11px] sm:text-xs text-sky-300 shadow-lg">
+            <i class="fa-solid fa-hand-pointer mr-1 animate-bounce text-rose-400"></i> 拖曳旋轉星球 / 點擊立體蛇頭進行砍伐
+        </div>
+
+    </div>
+
+    <!-- MODAL 1: Level Select Menu -->
+    <div id="modal-level-select" class="fixed inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div class="glass-panel p-4 sm:p-8 rounded-2xl max-w-3xl w-full text-center space-y-6 max-h-[95vh] overflow-y-auto pointer-events-auto">
+            <div>
+                <h2 class="text-2xl sm:text-4xl font-black font-orbitron text-sky-400 glow-text mb-2">九頭蛇數學遊戲</h2>
+                <p class="text-sm sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed">
+                    每關初始皆有精確 9 顆蛇頭！隨著關卡提升，樹狀結構與深度增加，體驗柯比與巴黎（Kirby & Paris, 1982）的數學增生極限！
+                </p>
+            </div>
+
+            <!-- Level Grid (Top: 1-5, Bottom: 6-10) -->
+            <div class="space-y-4">
+                <h3 class="text-xs font-bold text-sky-400 tracking-widest uppercase">選擇挑戰關卡 (通關後解鎖下一關)</h3>
+                
+                <!-- Row 1: Levels 1-5 -->
+                <div class="grid grid-cols-5 gap-2 sm:gap-4">
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="1">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.1</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">01</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="2">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.2</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">02</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="3">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.3</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">03</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="4">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.4</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">04</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="5">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.5</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">05</span>
+                    </button>
+                </div>
+
+                <!-- Row 2: Levels 6-10 -->
+                <div class="grid grid-cols-5 gap-2 sm:gap-4">
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="6">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.6</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">06</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="7">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.7</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">07</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="8">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.8</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">08</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="9">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.9</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">09</span>
+                    </button>
+                    <button class="level-btn glass-btn py-3 px-1 sm:p-5 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer" data-level="10">
+                        <span class="text-xs text-slate-400 font-orbitron">LV.10</span>
+                        <span class="text-xl font-black text-sky-400 font-orbitron">10</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Rules Summary -->
+            <div class="text-xs text-slate-300 bg-slate-900/70 p-4 rounded-xl border border-slate-800 text-left space-y-1.5 leading-relaxed">
+                <p class="text-sky-400 font-bold mb-1"><i class="fa-solid fa-book-bookmark mr-1"></i> 砍伐機制說明：</p>
+                <p>• <b>根部蛇頭：</b>直接連接在星球上的蛇頭，砍掉後直接消滅，不引發增生。</p>
+                <p>• <b>分支蛇頭：</b>生長於頸部分支上的蛇頭，砍掉後該蛇頭消失，其所屬頸部分支會<b>複製 2 份重新接回祖父節點</b>！</p>
+                <p>• <b>通關保證：</b>每關都有「最糟砍擊次數」上限，逐關遞增，第 10 關無論怎麼亂砍都不會超過 911 次。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Pre-Level Prompt Modal -->
+    <div id="modal-notice" class="fixed inset-0 z-30 hidden flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div class="glass-panel p-6 sm:p-8 rounded-2xl max-w-md w-full max-h-[95vh] overflow-y-auto text-center space-y-5 border-sky-500/50 shadow-2xl pointer-events-auto">
+            <div class="w-16 h-16 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center mx-auto text-2xl border border-sky-400 glow-text">
+                <i id="notice-icon" class="fa-solid fa-shield-halved"></i>
+            </div>
+            
+            <h3 id="notice-title" class="text-2xl font-black text-sky-300">關卡提示</h3>
+            
+            <div id="notice-body" class="text-slate-200 text-sm leading-relaxed bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-left">
+                <!-- Dynamic notice text injected here -->
+            </div>
+
+            <button id="btn-start-level" class="w-full glass-btn py-3 px-6 rounded-xl font-bold text-sky-400 hover:text-white bg-sky-500/20 border-sky-500 transition-all cursor-pointer">
+                開始挑戰 <i class="fa-solid fa-play ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Victory Modal -->
+    <div id="modal-victory" class="fixed inset-0 z-30 hidden flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div class="glass-panel p-6 sm:p-8 rounded-2xl max-w-lg w-full max-h-[95vh] overflow-y-auto text-center space-y-4 sm:space-y-6 border-emerald-500/50 shadow-2xl pointer-events-auto">
+            <div class="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-3xl border border-emerald-400 glow-text">
+                <i class="fa-solid fa-crown"></i>
+            </div>
+            
+            <div>
+                <h3 class="text-3xl font-black font-orbitron text-emerald-400 glow-text">LEVEL CLEARED!</h3>
+                <p class="text-slate-300 text-sm mt-1">成功封印九頭蛇的全部 9 顆初始蛇頭！</p>
+            </div>
+
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                <span class="text-slate-400 block text-xs uppercase tracking-widest">您的總砍擊次數</span>
+                <span id="victory-chops" class="text-3xl font-black text-amber-400 font-orbitron mt-1 block">0 次</span>
+            </div>
+
+            <!-- Mathematical Insights -->
+            <div id="victory-math-insight" class="text-xs text-slate-300 bg-slate-900/90 p-4 rounded-xl border border-sky-900 text-left leading-relaxed space-y-2">
+                <!-- Injected insight -->
+            </div>
+
+            <div class="flex gap-3">
+                <button id="btn-relevel" class="w-1/2 glass-btn py-3 rounded-xl font-bold text-slate-300 hover:text-white cursor-pointer">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> 重玩本關
+                </button>
+                <button id="btn-nextlevel" class="w-1/2 glass-btn py-3 rounded-xl font-bold text-sky-400 hover:text-white bg-sky-500/20 border-sky-500 cursor-pointer">
+                    下一關 <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Script -->
+    <script>
+        /* =========================================================================
+           1. SOUND EFFECTS SYNTHESIZER (Web Audio API)
+           ========================================================================= */
+        class SoundFX {
+            constructor() { this.ctx = null; }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            playChop() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + 0.15);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            }
+            playGrow() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, now);
+                osc.frequency.linearRampToValueAtTime(320, now + 0.2);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.35);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            }
+            playWin() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const notes = [261.63, 329.63, 392.00, 523.25, 659.25];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.4);
+                });
+            }
+        }
+        const sfx = new SoundFX();
+
+        /* =========================================================================
+           2. HYDRA GAME LOGIC ENGINE (使用安全的程式化生成，確保每關正好 9 顆初始頭且不崩潰)
+           ========================================================================= */
+
+        let globalNodeCounter = 1;
+        function createNode(children = []) {
+            return {
+                id: globalNodeCounter++,
+                children: children
+            };
+        }
+
+        function cloneSubtree(node) {
+            const newNode = createNode();
+            if (node.children && node.children.length > 0) {
+                newNode.children = node.children.map(child => cloneSubtree(child));
+            }
+            return newNode;
+        }
+
+        // 輔助生成器：建立擁有指定頭數的樹枝（一條頸部，上面直接長 n 顆頭）
+        function makeBranchWithHeads(headCount) {
+            const headNodes = [];
+            for (let i = 0; i < headCount; i++) {
+                headNodes.push(createNode([]));
+            }
+            return createNode(headNodes);
+        }
+        const leaf = () => createNode([]);
+        const branch = (n) => makeBranchWithHeads(n);
+        // 「雙層」分支：一顆頭 + 一條帶一顆頭的小分支 (增生威力遠大於單層分支)
+        const deepBranch = (extraLeaves) => {
+            const kids = [];
+            for (let i = 0; i < extraLeaves; i++) kids.push(leaf());
+            kids.push(createNode([leaf()]));
+            return createNode(kids);
+        };
+
+        /* -------------------------------------------------------------------------
+           關卡設計說明（maxChops = 「最糟狀況」下的最大砍擊次數，已用窮舉驗證）
+           規則：砍掉分支頭 → 其頸部連同剩餘子樹「額外複製 2 份」接回祖父節點。
+           每關皆為精確 9 顆初始頭；maxChops 嚴格遞增，第 10 關不超過 1000。
+
+           記號：.=蛇頭  (..)=一條頸上 2 頭  (.(.))=一頭 + 一條小分支
+           Lv1  . . . . . . . . .                      → 9
+           Lv2  7 頭 + (..)                              → 20
+           Lv3  3 頭 + (..)x3                            → 42
+           Lv4  (..)x3 + (...)                           → 79
+           Lv5  (...)x3                                  → 120
+           Lv6  (..)(..)(.(.))(...)                      → 190
+           Lv7  (.(.))(...)(....)                        → 285
+           Lv8  (....)(.....)                            → 485
+           Lv9  (..)(.(.))(.(.))(..(.))                  → 634
+           Lv10 ((.))(.(.))(..(.))(..(.))                → 911
+           ------------------------------------------------------------------------- */
+        const LEVEL_CONFIGS = {
+            1: {
+                maxChops: 9,
+                insight: "<b>第 1 關心得：</b>9 顆頭全部直接長在星球表面（根部）。砍掉直接死掉不增生，只需砍 9 次即通關！",
+                buildTree: () => {
+                    const roots = [];
+                    for (let i = 0; i < 9; i++) roots.push(leaf());
+                    return roots;
+                }
+            },
+            2: {
+                maxChops: 20,
+                insight: "<b>第 2 關心得：</b>7 顆根部頭加上 1 條雙頭分支。第一次體驗「砍分支頭 → 頸部複製」的增生，但規模仍然很小。",
+                buildTree: () => {
+                    const roots = [];
+                    for (let i = 0; i < 7; i++) roots.push(leaf());
+                    roots.push(branch(2));
+                    return roots;
+                }
+            },
+            3: {
+                maxChops: 42,
+                insight: "<b>第 3 關心得：</b>3 條雙頭分支。每砍一個分支頭，那條頸部就變成 3 條，蛇頭數開始有感地成長。",
+                buildTree: () => {
+                    return [leaf(), leaf(), leaf(), branch(2), branch(2), branch(2)];
+                }
+            },
+            4: {
+                maxChops: 79,
+                insight: "<b>第 4 關心得：</b>分支頭變多、單條分支變粗。頭越多的分支，增生出來的份數越驚人。",
+                buildTree: () => {
+                    return [branch(2), branch(2), branch(2), branch(3)];
+                }
+            },
+            5: {
+                maxChops: 120,
+                insight: "<b>第 5 關心得：</b>三條三頭分支。每一條都會以 3→3×2→3×3… 的方式展開，總共需要的砍擊數固定為 120 次。",
+                buildTree: () => {
+                    return [branch(3), branch(3), branch(3)];
+                }
+            },
+            6: {
+                maxChops: 190,
+                insight: "<b>第 6 關心得：</b>出現「雙層分支」(一頭＋一條小分支)。從哪裡下刀開始有差別，但最糟也不超過 190 次。",
+                buildTree: () => {
+                    return [branch(2), branch(2), deepBranch(1), branch(3)];
+                }
+            },
+            7: {
+                maxChops: 285,
+                insight: "<b>第 7 關心得：</b>雙層分支搭配三頭、四頭分支。優先處理小分支底下的頭，能避免它們被不斷複製。",
+                buildTree: () => {
+                    return [deepBranch(1), branch(3), branch(4)];
+                }
+            },
+            8: {
+                maxChops: 485,
+                insight: "<b>第 8 關心得：</b>四頭與五頭的大分支。頭數越多的頸部，增生次數呈 3 的次方成長，這是耐心的考驗！",
+                buildTree: () => {
+                    return [branch(4), branch(5)];
+                }
+            },
+            9: {
+                maxChops: 634,
+                insight: "<b>第 9 關心得：</b>多個雙層分支與一條「兩頭＋小分支」的粗頸。砍擊順序決定你是 600 次通關，還是更省力。",
+                buildTree: () => {
+                    return [branch(2), deepBranch(1), deepBranch(1), deepBranch(2)];
+                }
+            },
+            10: {
+                maxChops: 911,
+                insight: "<b>第 10 關終極心得：</b>最終試煉！無論怎麼砍，911 次以內必定通關——這就是柯比-巴黎定理：九頭蛇再會長，也註定被消滅！",
+                buildTree: () => {
+                    return [
+                        createNode([createNode([leaf()])]),   // ((.))
+                        deepBranch(1),                         // (.(.))
+                        deepBranch(2),                         // (..(.))
+                        deepBranch(2)                          // (..(.))
+                    ];
+                }
+            }
+        };
+
+        /* =========================================================================
+           3. THREE.JS 3D SCENE & PROCEDURAL HYDRA GRAPHICS
+           ========================================================================= */
+
+        let scene, camera, renderer, controls;
+        let planetMesh, atmosphereMesh;
+        let hydraGroup;
+        let raycaster, mouse;
+
+        let currentLevel = 1;
+        let currentTreeRoots = [];
+        let totalChops = 0;
+        let currentMaxChops = 0;
+
+        // ---- 關卡解鎖進度（存在瀏覽器 localStorage，讀寫失敗時退回記憶體） ----
+        const SAVE_KEY = 'hydra3d_unlocked_level';
+        let unlockedLevel = 1;
+        try {
+            const saved = parseInt(localStorage.getItem(SAVE_KEY), 10);
+            if (saved >= 1 && saved <= 10) unlockedLevel = saved;
+        } catch (e) {}
+        function saveProgress() {
+            try { localStorage.setItem(SAVE_KEY, String(unlockedLevel)); } catch (e) {}
+        }
+        function refreshLevelButtons() {
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                const lv = parseInt(btn.getAttribute('data-level'));
+                const locked = lv > unlockedLevel;
+                btn.disabled = locked;
+                btn.classList.toggle('opacity-40', locked);
+                btn.classList.toggle('cursor-not-allowed', locked);
+                btn.classList.toggle('cursor-pointer', !locked);
+                const num = btn.querySelectorAll('span')[1];
+                num.innerHTML = locked
+                    ? '<i class="fa-solid fa-lock text-slate-500"></i>'
+                    : String(lv).padStart(2, '0');
+            });
+        }
+        let interactiveHeadMeshes = [];
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 16);
+            lastPortrait = null;
+            fitCameraToAspect();
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 40;
+            controls.minDistance = 6;
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            const ambientLight = new THREE.AmbientLight(0x38bdf8, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.3);
+            dirLight.position.set(12, 20, 15);
+            scene.add(dirLight);
+
+            const redGlowLight = new THREE.PointLight(0xf43f5e, 2.5, 25);
+            redGlowLight.position.set(-12, -10, -10);
+            scene.add(redGlowLight);
+
+            // Planet Body
+            const planetGeo = new THREE.SphereGeometry(3.6, 64, 64);
+            const planetMat = new THREE.MeshStandardMaterial({
+                color: 0x091528,
+                roughness: 0.5,
+                metalness: 0.4,
+                emissive: 0x0284c7,
+                emissiveIntensity: 0.2
+            });
+            planetMesh = new THREE.Mesh(planetGeo, planetMat);
+            scene.add(planetMesh);
+
+            const wireGeo = new THREE.SphereGeometry(3.62, 32, 32);
+            const wireMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.15
+            });
+            planetMesh.add(new THREE.Mesh(wireGeo, wireMat));
+
+            const atmosGeo = new THREE.SphereGeometry(3.9, 32, 32);
+            const atmosMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.08,
+                side: THREE.BackSide
+            });
+            atmosphereMesh = new THREE.Mesh(atmosGeo, atmosMat);
+            scene.add(atmosphereMesh);
+
+            hydraGroup = new THREE.Group();
+            planetMesh.add(hydraGroup);
+
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('pointerdown', onPointerDown);
+        }
+
+        /* =========================================================================
+           4. PROCEDURAL 3D SNAKE HEAD & NECK CREATION
+           ========================================================================= */
+
+        // 共用的幾何與材質（避免每顆頭、每次重繪都新建，造成記憶體暴增與卡頓）
+        let SHARED = null;
+        function getShared() {
+            if (SHARED) return SHARED;
+            const skullGeo = new THREE.ConeGeometry(0.35, 0.8, 6);
+            skullGeo.rotateX(Math.PI / 2);
+            const snoutGeo = new THREE.BoxGeometry(0.32, 0.22, 0.5);
+            snoutGeo.translate(0, -0.05, 0.25);
+            const hornGeo = new THREE.ConeGeometry(0.06, 0.4, 4);
+            hornGeo.rotateX(-Math.PI / 4);
+            const fangGeo = new THREE.ConeGeometry(0.03, 0.15, 4);
+            fangGeo.rotateX(Math.PI);
+            SHARED = {
+                skullGeo, snoutGeo, hornGeo, fangGeo,
+                eyeGeo: new THREE.SphereGeometry(0.08, 8, 8),
+                hitGeo: new THREE.SphereGeometry(0.55, 8, 8),
+                jointGeo: new THREE.SphereGeometry(0.14, 8, 8),
+                ringGeo: new THREE.CylinderGeometry(0.08, 0.08, 0.1, 6),
+                skullMat: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.3, metalness: 0.7, emissive: 0x0f172a }),
+                snoutMat: new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.3, emissive: 0x9f1239, emissiveIntensity: 0.4 }),
+                eyeMat: new THREE.MeshBasicMaterial({ color: 0xfef08a }),
+                hornMat: new THREE.MeshStandardMaterial({ color: 0xf43f5e, metalness: 0.8 }),
+                fangMat: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+                hitMat: new THREE.MeshBasicMaterial({ visible: false }),
+                jointMat: new THREE.MeshStandardMaterial({ color: 0x0284c7, emissive: 0x0369a1 }),
+                ringMatTerminal: new THREE.MeshStandardMaterial({ color: 0xe11d48, metalness: 0.5, roughness: 0.4 }),
+                ringMatNormal: new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.5, roughness: 0.4 })
+            };
+            return SHARED;
+        }
+
+        // 蛇頭超過此數量時改用精簡版蛇頭（少畫眼睛、角、牙），避免大量蛇頭時卡頓
+        const LITE_HEAD_THRESHOLD = 120;
+        let liteMode = false;
+
+        function create3DSnakeHeadMesh(nodeId) {
+            const S = getShared();
+            const headGroup = new THREE.Group();
+            headGroup.userData = { nodeId: nodeId, isHead: true };
+
+            headGroup.add(new THREE.Mesh(S.skullGeo, S.skullMat));
+            headGroup.add(new THREE.Mesh(S.snoutGeo, S.snoutMat));
+
+            const hitMeshLite = new THREE.Mesh(S.hitGeo, S.hitMat);
+            hitMeshLite.userData = { nodeId: nodeId, isHead: true };
+            headGroup.add(hitMeshLite);
+            if (liteMode) return headGroup;
+
+            const leftEye = new THREE.Mesh(S.eyeGeo, S.eyeMat);
+            leftEye.position.set(0.16, 0.08, 0.15);
+            headGroup.add(leftEye);
+            const rightEye = new THREE.Mesh(S.eyeGeo, S.eyeMat);
+            rightEye.position.set(-0.16, 0.08, 0.15);
+            headGroup.add(rightEye);
+
+            const leftHorn = new THREE.Mesh(S.hornGeo, S.hornMat);
+            leftHorn.position.set(0.14, 0.22, -0.15);
+            headGroup.add(leftHorn);
+            const rightHorn = new THREE.Mesh(S.hornGeo, S.hornMat);
+            rightHorn.position.set(-0.14, 0.22, -0.15);
+            headGroup.add(rightHorn);
+
+            const leftFang = new THREE.Mesh(S.fangGeo, S.fangMat);
+            leftFang.position.set(0.1, -0.15, 0.45);
+            headGroup.add(leftFang);
+            const rightFang = new THREE.Mesh(S.fangGeo, S.fangMat);
+            rightFang.position.set(-0.1, -0.15, 0.45);
+            headGroup.add(rightFang);
+
+            return headGroup;
+        }
+
+        // 頸部環節與關節改用 InstancedMesh 一次畫完（整隻九頭蛇的頸部只需 3 次 draw call）
+        let ringInstances = { terminal: [], normal: [] };
+        let jointInstances = [];
+        const _dummy = new THREE.Object3D();
+
+        function addNeckInstances(startPos, endPos, isTerminal) {
+            const midPos = startPos.clone().lerp(endPos, 0.5);
+            const dir = endPos.clone().sub(startPos);
+            const perp = new THREE.Vector3(-dir.y, dir.x, dir.z).normalize().multiplyScalar(0.3);
+            midPos.add(perp);
+
+            const curve = new THREE.QuadraticBezierCurve3(startPos, midPos, endPos);
+            const points = curve.getPoints(8);
+            const bucket = isTerminal ? ringInstances.terminal : ringInstances.normal;
+
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i];
+                const p2 = points[i + 1];
+                _dummy.position.copy(p1).lerp(p2, 0.5);
+                _dummy.rotation.set(0, 0, 0);
+                _dummy.scale.set(1, 1, 1);
+                _dummy.updateMatrix();
+                _dummy.lookAt(p2);
+                _dummy.rotateX(Math.PI / 2);
+                _dummy.updateMatrix();
+                bucket.push(_dummy.matrix.clone());
+            }
+        }
+
+        function flushNeckInstances() {
+            const S = getShared();
+            const make = (geo, mat, matrices) => {
+                if (matrices.length === 0) return;
+                const mesh = new THREE.InstancedMesh(geo, mat, matrices.length);
+                matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
+                mesh.instanceMatrix.needsUpdate = true;
+                mesh.frustumCulled = false;
+                hydraGroup.add(mesh);
+            };
+            make(S.ringGeo, S.ringMatTerminal, ringInstances.terminal);
+            make(S.ringGeo, S.ringMatNormal, ringInstances.normal);
+            const jointMats = jointInstances.map(pos => {
+                _dummy.position.copy(pos);
+                _dummy.rotation.set(0, 0, 0);
+                _dummy.updateMatrix();
+                return _dummy.matrix.clone();
+            });
+            make(S.jointGeo, S.jointMat, jointMats);
+            ringInstances = { terminal: [], normal: [] };
+            jointInstances = [];
+        }
+
+        /* =========================================================================
+           5. HYDRA TREE RECURSIVE RENDERER
+           ========================================================================= */
+
+        let rootAnchorMap = new Map();
+
+        function renderHydraTrees() {
+            while (hydraGroup.children.length > 0) {
+                const old = hydraGroup.children[0];
+                hydraGroup.remove(old);
+                if (old.isInstancedMesh && old.dispose) old.dispose(); // 釋放舊的 instance 緩衝
+            }
+            interactiveHeadMeshes = [];
+            ringInstances = { terminal: [], normal: [] };
+            jointInstances = [];
+
+            if (currentTreeRoots.length === 0) return;
+            liteMode = countRemainingHeads(currentTreeRoots) > LITE_HEAD_THRESHOLD;
+
+            const count = currentTreeRoots.length;
+            const goldenRatio = (1 + Math.sqrt(5)) / 2;
+
+            currentTreeRoots.forEach((rootNode, idx) => {
+                let theta, phi;
+                if (!rootAnchorMap.has(rootNode.id)) {
+                    theta = 2 * Math.PI * idx / goldenRatio;
+                    phi = Math.acos(1 - 2 * (idx + 0.5) / count);
+                    rootAnchorMap.set(rootNode.id, { theta, phi });
+                } else {
+                    const anchor = rootAnchorMap.get(rootNode.id);
+                    theta = anchor.theta;
+                    phi = anchor.phi;
+                }
+
+                const planetRadius = 3.6;
+                const rootPos = new THREE.Vector3(
+                    planetRadius * Math.sin(phi) * Math.cos(theta),
+                    planetRadius * Math.cos(phi),
+                    planetRadius * Math.sin(phi) * Math.sin(theta)
+                );
+
+                const normal = rootPos.clone().normalize();
+                
+                if (!rootNode.children || rootNode.children.length === 0) {
+                    const headMesh = create3DSnakeHeadMesh(rootNode.id);
+                    headMesh.position.copy(rootPos);
+                    headMesh.lookAt(rootPos.clone().add(normal));
+                    hydraGroup.add(headMesh);
+                    interactiveHeadMeshes.push(headMesh);
+                } else {
+                    buildBranchNode(rootNode, rootPos, normal, 1.1, 0);
+                }
+            });
+
+            flushNeckInstances();
+            updateHUD();
+        }
+
+        function buildBranchNode(node, startPos, dirVector, length, depth) {
+            const isTerminal = (!node.children || node.children.length === 0);
+            const endPos = startPos.clone().add(dirVector.clone().multiplyScalar(length));
+
+            addNeckInstances(startPos, endPos, isTerminal);
+
+            if (isTerminal) {
+                const headMesh = create3DSnakeHeadMesh(node.id);
+                headMesh.position.copy(endPos);
+                headMesh.lookAt(endPos.clone().add(dirVector));
+                hydraGroup.add(headMesh);
+                
+                interactiveHeadMeshes.push(headMesh);
+            } else {
+                if (!liteMode) jointInstances.push(endPos.clone());
+
+                const childCount = node.children.length;
+                node.children.forEach((child, i) => {
+                    const spreadAngle = 0.55;
+                    const angleOffset = (i - (childCount - 1) / 2) * spreadAngle;
+
+                    let perp = new THREE.Vector3(1, 0, 0).cross(dirVector);
+                    if (perp.lengthSq() < 0.001) perp = new THREE.Vector3(0, 1, 0).cross(dirVector);
+                    perp.normalize();
+
+                    const childDir = dirVector.clone().applyAxisAngle(perp, angleOffset).normalize();
+                    buildBranchNode(child, endPos, childDir, length * 0.82, depth + 1);
+                });
+            }
+        }
+
+        /* =========================================================================
+           6. GAMEPLAY ENGINE & INTERACTION LOGIC
+           ========================================================================= */
+
+        function countRemainingHeads(nodes) {
+            let count = 0;
+            function traverse(node) {
+                if (!node.children || node.children.length === 0) {
+                    count++;
+                } else {
+                    node.children.forEach(traverse);
+                }
+            }
+            nodes.forEach(traverse);
+            return count;
+        }
+
+        function onPointerDown(e) {
+            if (e.target.closest('#modal-level-select') || e.target.closest('#modal-notice') || e.target.closest('#modal-victory') || e.target.closest('header')) {
+                return;
+            }
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactiveHeadMeshes, true);
+
+            if (intersects.length > 0) {
+                let hitObj = intersects[0].object;
+                while (hitObj && !hitObj.userData.nodeId && hitObj.parent) {
+                    hitObj = hitObj.parent;
+                }
+                if (hitObj && hitObj.userData.nodeId) {
+                    chopHead(hitObj.userData.nodeId, e.clientX, e.clientY);
+                }
+            }
+        }
+
+        // 純邏輯：對森林 roots 砍掉 targetNodeId（不碰 DOM / 3D），回傳是否引發增生
+        function applyChop(roots, targetNodeId) {
+            for (let i = 0; i < roots.length; i++) {
+                if (roots[i].id === targetNodeId && (!roots[i].children || roots[i].children.length === 0)) {
+                    roots.splice(i, 1);
+                    return false; // 根部蛇頭：直接消滅
+                }
+            }
+
+            let targetParent = null;
+            let targetGrandparent = null;
+            let found = false;
+
+            function findNodePath(node, parent, grandParent) {
+                if (node.id === targetNodeId) {
+                    targetParent = parent;
+                    targetGrandparent = grandParent;
+                    return true;
+                }
+                if (node.children) {
+                    for (let child of node.children) {
+                        if (findNodePath(child, node, parent)) return true;
+                    }
+                }
+                return false;
+            }
+
+            for (const root of roots) {
+                if (findNodePath(root, null, null)) { found = true; break; }
+            }
+
+            let grew = false;
+            if (found && targetParent) {
+                targetParent.children = targetParent.children.filter(c => c.id !== targetNodeId);
+                const subtreeToCopy = cloneSubtree(targetParent);
+
+                if (!targetGrandparent) {
+                    for (let k = 0; k < 2; k++) roots.push(cloneSubtree(subtreeToCopy));
+                } else {
+                    for (let k = 0; k < 2; k++) targetGrandparent.children.push(cloneSubtree(subtreeToCopy));
+                }
+                grew = true;
+            }
+            cleanEmptyBranches(roots);
+            return grew;
+        }
+
+        function chopHead(targetNodeId, screenX, screenY) {
+            sfx.playChop();
+            triggerSlashFX(screenX, screenY);
+            totalChops++;
+
+            const grew = applyChop(currentTreeRoots, targetNodeId);
+            if (grew) sfx.playGrow();
+
+            renderHydraTrees();
+
+            const headsRemaining = countRemainingHeads(currentTreeRoots);
+            if (headsRemaining === 0) {
+                setTimeout(showVictoryModal, 400);
+            }
+        }
+
+        function cleanEmptyBranches(nodes) {
+            for (let i = nodes.length - 1; i >= 0; i--) {
+                const node = nodes[i];
+                if (node.children && node.children.length > 0) {
+                    cleanEmptyBranches(node.children);
+                    if (node.children.length === 0) {
+                        nodes.splice(i, 1);
+                    }
+                }
+            }
+        }
+
+        function triggerSlashFX(x, y) {
+            const slash = document.createElement('div');
+            slash.className = 'slash-effect';
+            slash.style.left = `${x}px`;
+            slash.style.top = `${y}px`;
+            document.body.appendChild(slash);
+            setTimeout(() => slash.remove(), 300);
+        }
+
+        /* =========================================================================
+           7. UI & MODAL MANAGERS
+           ========================================================================= */
+
+        function updateHUD() {
+            const remaining = countRemainingHeads(currentTreeRoots);
+            document.getElementById('hud-level').innerText = `LV.${String(currentLevel).padStart(2, '0')}`;
+            document.getElementById('hud-chops').innerText = totalChops;
+            document.getElementById('hud-heads').innerText = remaining;
+        }
+
+        function loadLevel(levelNum) {
+            currentLevel = levelNum;
+            totalChops = 0;
+            globalNodeCounter = 1;
+            rootAnchorMap.clear();
+
+            const config = LEVEL_CONFIGS[levelNum];
+            currentMaxChops = config.maxChops;
+            currentTreeRoots = config.buildTree();
+
+            document.getElementById('modal-level-select').classList.add('hidden');
+            showPreStartNotice(levelNum);
+        }
+
+        function showPreStartNotice(levelNum) {
+            const noticeModal = document.getElementById('modal-notice');
+            const noticeBody = document.getElementById('notice-body');
+            const noticeTitle = document.getElementById('notice-title');
+
+            noticeTitle.innerText = `關卡 ${levelNum} 挑戰提示`;
+
+            if (levelNum === 1) {
+                noticeBody.innerHTML = `
+                    <div class="text-amber-400 font-bold mb-1.5"><i class="fa-solid fa-circle-info"></i> 第 1 關說明：</div>
+                    <p class="text-sky-200 leading-relaxed">本關有 <b>9 顆初始蛇頭</b>，全部直接生長於星球根部。砍掉根部蛇頭即直接消滅，<b>不會增生</b>。</p>
+                    <p class="mt-2 text-xs text-slate-400">精準砍擊 9 次即可輕鬆通關！（最多 9 次）</p>
+                `;
+            } else {
+                noticeBody.innerHTML = `
+                    <div class="text-amber-400 font-bold mb-1.5"><i class="fa-solid fa-dna"></i> 第 ${levelNum} 關提示：</div>
+                    <p class="text-slate-200 leading-relaxed">本關初始同樣有 <b>9 顆蛇頭</b>，但分佈在不同的頸部分支與深度。砍掉分支頭會使該子樹<span class="text-rose-400 font-bold">複製 2 份</span>！請謹慎規劃砍擊順序！</p>
+                    <p class="mt-2 text-xs text-emerald-300"><i class="fa-solid fa-shield-heart mr-1"></i>保證：無論怎麼砍，<b>最多 ${LEVEL_CONFIGS[levelNum].maxChops} 次</b>內一定能通關。</p>
+                `;
+            }
+
+            noticeModal.classList.remove('hidden');
+        }
+
+        function startCurrentLevelGameplay() {
+            document.getElementById('modal-notice').classList.add('hidden');
+            document.getElementById('hud-stats').classList.remove('hidden');
+            document.getElementById('hud-controls-hint').classList.remove('hidden');
+
+            renderHydraTrees();
+        }
+
+        function showVictoryModal() {
+            sfx.playWin();
+            if (currentLevel >= unlockedLevel && currentLevel < 10) {
+                unlockedLevel = currentLevel + 1;
+                saveProgress();
+                refreshLevelButtons();
+            }
+            const victoryModal = document.getElementById('modal-victory');
+            const config = LEVEL_CONFIGS[currentLevel];
+
+            document.getElementById('victory-chops').innerText = `${totalChops} 次`;
+            document.getElementById('victory-math-insight').innerHTML = config.insight;
+
+            victoryModal.classList.remove('hidden');
+        }
+
+        /* Bind DOM Buttons */
+        document.addEventListener('DOMContentLoaded', () => {
+            init3D();
+
+            refreshLevelButtons();
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const level = parseInt(btn.getAttribute('data-level'));
+                    if (level > unlockedLevel) return;
+                    loadLevel(level);
+                });
+            });
+
+            document.getElementById('btn-start-level').addEventListener('click', () => {
+                startCurrentLevelGameplay();
+            });
+
+            document.getElementById('btn-home').addEventListener('click', () => {
+                document.getElementById('modal-level-select').classList.remove('hidden');
+                document.getElementById('modal-notice').classList.add('hidden');
+                document.getElementById('modal-victory').classList.add('hidden');
+                document.getElementById('hud-stats').classList.add('hidden');
+                document.getElementById('hud-controls-hint').classList.add('hidden');
+                
+                currentTreeRoots = [];
+                renderHydraTrees();
+            });
+
+            document.getElementById('btn-relevel').addEventListener('click', () => {
+                document.getElementById('modal-victory').classList.add('hidden');
+                loadLevel(currentLevel);
+            });
+
+            document.getElementById('btn-nextlevel').addEventListener('click', () => {
+                document.getElementById('modal-victory').classList.add('hidden');
+                if (currentLevel < 10) {
+                    loadLevel(currentLevel + 1);
+                } else {
+                    document.getElementById('modal-level-select').classList.remove('hidden');
+                }
+            });
+
+            animate();
+        });
+
+        /* Animation & Rendering Loop */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (controls) controls.update();
+
+            const time = Date.now() * 0.003;
+            interactiveHeadMeshes.forEach((head, idx) => {
+                head.rotation.z = Math.sin(time + idx) * 0.15;
+                head.rotation.y += Math.cos(time * 0.5 + idx) * 0.005;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // 直向手機：加大視角並拉遠鏡頭，讓整顆星球與蛇頭不會被左右切掉
+        let lastPortrait = null;
+        function fitCameraToAspect() {
+            const aspect = window.innerWidth / window.innerHeight;
+            const portrait = aspect < 1;
+            camera.fov = portrait ? 55 : 45;
+            camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+            if (portrait !== lastPortrait) {
+                let dist = 16;
+                if (portrait) {
+                    const halfTan = Math.tan(camera.fov * Math.PI / 360);
+                    dist = Math.min(32, Math.max(16, 6.5 / (halfTan * aspect)));
+                }
+                camera.position.setLength(dist);
+                lastPortrait = portrait;
+            }
+        }
+
+        function onWindowResize() {
+            fitCameraToAspect();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
