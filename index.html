@@ -568,18 +568,21 @@
                 ]
             },
             12: {
-                maxChops: 10000,
-                special: true,
-                insight: "<b>特別挑戰 II：</b>只有一條蛇，9 顆頭全部直接長在第二層，不放入更深的分枝。依 T(1)=1、T(n)=1+3T(n−1)，最糟狀況為 T(9)=9,841 次，低於 10,000 次。",
-                buildTree: () => [branch(9)]
-            },
-            13: {
                 maxChops: 5000,
                 special: true,
-                insight: "<b>特別挑戰 III：</b>共 9 顆初始頭。第一條蛇有 3 顆第二層頭，另有一條第三層分枝帶 2 顆頭；第二條蛇有 4 顆第二層頭。依目前增生規則推算，最糟狀況為 161 次，低於 5,000 次。",
+                insight: "<b>特別挑戰 II：</b>共 9 顆初始頭、兩條蛇。第一條蛇有 1 顆第二層頭，以及 2 顆各自沿三段蛇頸連回根部的第三層頭；第二條蛇有 6 顆第二層頭。",
                 buildTree: () => [
-                    createNode([leaf(), leaf(), leaf(), createNode([leaf(), leaf()])]),
-                    branch(4)
+                    createNode([leaf(), createNode([leaf()]), createNode([leaf()])]),
+                    branch(6)
+                ]
+            },
+            13: {
+                maxChops: 10000,
+                special: true,
+                insight: "<b>特別挑戰 III：</b>共 9 顆初始頭、兩條蛇。第一條蛇有 2 顆第二層頭與 2 顆各自位於第三層的頭；第二條蛇有 4 顆第二層頭與 1 顆第三層頭。",
+                buildTree: () => [
+                    createNode([leaf(), leaf(), createNode([leaf()]), createNode([leaf()])]),
+                    createNode([leaf(), leaf(), leaf(), leaf(), createNode([leaf()])])
                 ]
             }
         };
@@ -1222,6 +1225,13 @@
             const intersects = raycaster.intersectObjects(interactiveHeadMeshes, true);
 
             if (intersects.length > 0) {
+                // 若星球表面比蛇頭更靠近攝影機，代表蛇頭在星球背面；不可點擊。
+                // 頭部模型可能由多個子 mesh 組成，因此以最近的頭部交點與星球交點比較。
+                const planetIntersections = raycaster.intersectObject(planetMesh, false);
+                const nearestHeadDistance = intersects[0].distance;
+                const nearestPlanetDistance = planetIntersections.length ? planetIntersections[0].distance : Infinity;
+                if (nearestPlanetDistance < nearestHeadDistance - 0.02) return;
+
                 let hitObj = intersects[0].object;
                 while (hitObj && !hitObj.userData.nodeId && hitObj.parent) {
                     hitObj = hitObj.parent;
