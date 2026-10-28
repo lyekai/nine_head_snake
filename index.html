@@ -143,6 +143,12 @@
                     <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">剩餘蛇頭</span>
                     <span id="hud-heads" class="text-base sm:text-lg font-bold text-rose-500 font-orbitron">9</span>
                 </div>
+                <div class="w-px h-8 bg-slate-700"></div>
+                <div class="text-center flex-1 sm:flex-none">
+                    <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">用時</span>
+                    <span id="hud-time" class="text-base sm:text-lg font-bold text-emerald-300 font-orbitron">00:00</span>
+                </div>
+                <button id="btn-pause" class="glass-btn px-3 py-2 rounded-lg text-sky-300 font-bold whitespace-nowrap" title="暫停遊戲"><i class="fa-solid fa-pause mr-1"></i><span>暫停</span></button>
             </div>
         </header>
 
@@ -315,6 +321,30 @@
                     下一關 <i class="fa-solid fa-arrow-right ml-1"></i>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Resume unfinished game prompt -->
+    <div id="modal-resume" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+        <div class="glass-panel p-6 sm:p-8 rounded-2xl max-w-md w-full text-center space-y-5 border-sky-500/50 shadow-2xl">
+            <div class="text-3xl text-sky-300"><i class="fa-solid fa-floppy-disk"></i></div>
+            <h3 class="text-xl sm:text-2xl font-black text-sky-300">有尚未結束的遊戲，是否繼續？</h3>
+            <p id="resume-summary" class="text-sm text-slate-300">已保存的遊戲進度</p>
+            <div class="flex gap-3">
+                <button id="btn-resume-continue" class="w-1/2 glass-btn py-3 rounded-xl font-bold text-emerald-300 border-emerald-500/50">繼續</button>
+                <button id="btn-resume-abandon" class="w-1/2 glass-btn py-3 rounded-xl font-bold text-rose-300 border-rose-500/50">放棄</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause overlay -->
+    <div id="modal-pause" class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div class="glass-panel p-6 sm:p-8 rounded-2xl max-w-sm w-full text-center space-y-5 border-sky-500/50 shadow-2xl">
+            <div class="text-3xl text-sky-300"><i class="fa-solid fa-pause"></i></div>
+            <h3 class="text-2xl font-black text-sky-300">遊戲已暫停</h3>
+            <p class="text-sm text-slate-300">暫停期間不能砍蛇頭，計時也會停止。</p>
+            <button id="btn-pause-resume" class="w-full glass-btn py-3 rounded-xl font-bold text-emerald-300">繼續遊戲</button>
+            <button id="btn-pause-exit" class="w-full glass-btn py-3 rounded-xl font-bold text-slate-300">保存並回到選關畫面</button>
         </div>
     </div>
 
@@ -540,22 +570,14 @@
             12: {
                 maxChops: 5000,
                 special: true,
-                insight: "<b>特別挑戰 II：</b>三層分支增加內層蛇頭數，放大每次複製後的工作量。設計目標為約 5,000 次等級；實際最糟步數需經窮舉驗證。",
-                buildTree: () => [
-                    threeLayerBranch(2, 2),
-                    threeLayerBranch(2, 1),
-                    branch(3)
-                ]
+                insight: "<b>特別挑戰 II：</b>本關改成可計算的三層結構：一條 8 頭主枝加一顆根部頭。主枝每次砍除後，剩餘主枝會保留並複製兩份，因此最糟步數可由遞迴式 T(n)=1+3T(n−1)、T(1)=1 得出：T(8)+1=3,281 次，低於 5,000 次上限。",
+                buildTree: () => [createNode([branch(8)]), leaf()]
             },
             13: {
                 maxChops: 10000,
                 special: true,
-                insight: "<b>特別挑戰 III：</b>三層結構搭配更多內層蛇頭，讓增生效應層層疊加。設計目標為約 10,000 次等級；實際最糟步數需經窮舉驗證。",
-                buildTree: () => [
-                    threeLayerBranch(2, 2),
-                    threeLayerBranch(2, 2),
-                    branch(1)
-                ]
+                insight: "<b>特別挑戰 III：</b>本關採用三層單一主枝，初始 9 顆頭皆在同一主枝上。依 T(n)=1+3T(n−1)、T(1)=1，最糟步數為 T(9)=9,841 次，低於 10,000 次上限。",
+                buildTree: () => [createNode([branch(9)])]
             }
         };
 
@@ -572,6 +594,71 @@
         let currentTreeRoots = [];
         let totalChops = 0;
         let currentMaxChops = 0;
+        let elapsedMs = 0;
+        let gameActive = false;
+        let isPaused = false;
+        let timerInterval = null;
+        const ACTIVE_GAME_KEY = 'hydra3d_active_game_v1';
+        const BEST_TIMES_KEY = 'hydra3d_best_times_v1';
+        let bestTimes = {};
+        try { bestTimes = JSON.parse(localStorage.getItem(BEST_TIMES_KEY) || '{}') || {}; } catch (e) { bestTimes = {}; }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        function updateTimerDisplay() {
+            const el = document.getElementById('hud-time');
+            if (el) el.textContent = formatTime(elapsedMs);
+        }
+        function getBestTime(level) {
+            const value = Number(bestTimes[String(level)]);
+            return Number.isFinite(value) && value >= 0 ? value : null;
+        }
+        function appendBestTimeToNotice(level) {
+            const body = document.getElementById('notice-body');
+            const old = document.getElementById('notice-best-time');
+            if (old) old.remove();
+            const best = getBestTime(level);
+            const row = document.createElement('p');
+            row.id = 'notice-best-time';
+            row.className = 'mt-3 pt-3 border-t border-slate-700 text-emerald-300 font-bold';
+            row.innerHTML = best === null ? '最快通關時間：尚無紀錄' : `最快通關時間：${formatTime(best)}`;
+            body.appendChild(row);
+        }
+        function saveActiveGame() {
+            if (!gameActive || !currentTreeRoots.length) return;
+            const data = { version: 1, level: currentLevel, roots: currentTreeRoots, totalChops, elapsedMs, savedAt: Date.now() };
+            try { localStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify(data)); } catch (e) {}
+        }
+        function clearActiveGameSave() {
+            try { localStorage.removeItem(ACTIVE_GAME_KEY); } catch (e) {}
+        }
+        function findMaxNodeId(nodes) {
+            let max = 0;
+            const visit = n => { max = Math.max(max, Number(n.id) || 0); (n.children || []).forEach(visit); };
+            (nodes || []).forEach(visit); return max;
+        }
+        function resumeSavedGame(data) {
+            currentLevel = data.level;
+            totalChops = data.totalChops || 0;
+            elapsedMs = data.elapsedMs || 0;
+            globalNodeCounter = findMaxNodeId(data.roots) + 1;
+            currentTreeRoots = data.roots;
+            currentMaxChops = (LEVEL_CONFIGS[currentLevel] || {}).maxChops || 0;
+            rootAnchorMap.clear(); spinDX = 0; spinDY = 0;
+            gameActive = true; isPaused = false;
+            document.getElementById('modal-resume').classList.add('hidden');
+            document.getElementById('modal-resume').classList.remove('flex');
+            document.getElementById('modal-level-select').classList.add('hidden');
+            document.getElementById('modal-notice').classList.add('hidden');
+            document.getElementById('modal-pause').classList.add('hidden');
+            document.getElementById('hud-stats').classList.remove('hidden');
+            document.getElementById('hud-controls-hint').classList.remove('hidden');
+            updateTimerDisplay(); renderHydraTrees(); saveActiveGame();
+        }
 
         // ---- 關卡解鎖進度（存在瀏覽器 localStorage，讀寫失敗時退回記憶體） ----
         const SAVE_KEY = 'hydra3d_unlocked_level';
@@ -1094,7 +1181,7 @@
 
         // 單擊（非拖曳）才會砍
         function handleClickAt(clientX, clientY) {
-            if (!currentTreeRoots.length) return;
+            if (!currentTreeRoots.length || isPaused || !gameActive) return;
             // 任何彈窗開啟時不砍
             const blocked = ['modal-level-select', 'modal-notice', 'modal-victory', 'modal-rules']
                 .some(id => !document.getElementById(id).classList.contains('hidden'));
@@ -1174,6 +1261,7 @@
             if (grew) sfx.playGrow();
 
             renderHydraTrees();
+            if (currentTreeRoots.length) saveActiveGame(); else clearActiveGameSave();
 
             const headsRemaining = countRemainingHeads(currentTreeRoots);
             if (headsRemaining === 0) {
@@ -1216,6 +1304,10 @@
         function loadLevel(levelNum) {
             currentLevel = levelNum;
             totalChops = 0;
+            elapsedMs = 0;
+            gameActive = false;
+            isPaused = false;
+            updateTimerDisplay();
             globalNodeCounter = 1;
             rootAnchorMap.clear();
             spinDX = 0; spinDY = 0;
@@ -1239,12 +1331,12 @@
                 : `關卡 ${levelNum} 挑戰提示`;
 
             if (config.special) {
-                const target = levelNum === 11 ? '2,000 次以下' : (levelNum === 12 ? '約 5,000 次等級' : '約 10,000 次等級');
+                const target = levelNum === 11 ? '2,000 次以下（仍需獨立驗證）' : (levelNum === 12 ? '最糟 3,281 次，低於 5,000 次上限' : '最糟 9,841 次，低於 10,000 次上限');
                 noticeBody.innerHTML = `
                     <div class="text-rose-300 font-bold mb-1.5"><i class="fa-solid fa-bolt"></i> 柯比－巴黎數量爆炸挑戰</div>
                     <p class="text-slate-200 leading-relaxed">本系列依序解鎖（special_01 可直接挑戰），初始有 <b>9 顆蛇頭</b>，樹狀結構包含三層節點。砍掉分支蛇頭後，所屬分支會複製兩份，複製後的子樹還可能再次增生。</p>
                     <p class="mt-2 text-amber-300">步數目標：<b>${target}</b>。</p>
-                    <p class="mt-2 text-xs text-slate-400">注意：這是目前的設計目標，不代表已證明的最糟上界；若要宣稱嚴格保證，需對實際遊戲規則做完整驗證。</p>
+                    <p class="mt-2 text-xs text-slate-400">special_02 與 special_03 使用可由遞迴式計算的主枝結構；special_01 的步數上界仍需另外驗證。</p>
                 `;
             } else if (levelNum === 1) {
                 noticeBody.innerHTML = `
@@ -1260,11 +1352,15 @@
                 `;
             }
 
+            appendBestTimeToNotice(levelNum);
             noticeModal.classList.remove('hidden');
         }
 
         function startCurrentLevelGameplay() {
             document.getElementById('modal-notice').classList.add('hidden');
+            gameActive = true;
+            isPaused = false;
+            saveActiveGame();
             document.getElementById('hud-stats').classList.remove('hidden');
             document.getElementById('hud-controls-hint').classList.remove('hidden');
 
@@ -1272,7 +1368,16 @@
         }
 
         function showVictoryModal() {
+            if (!gameActive) return;
+            gameActive = false;
+            isPaused = false;
+            clearActiveGameSave();
             sfx.playWin();
+            const previousBest = getBestTime(currentLevel);
+            if (previousBest === null || elapsedMs < previousBest) {
+                bestTimes[String(currentLevel)] = elapsedMs;
+                try { localStorage.setItem(BEST_TIMES_KEY, JSON.stringify(bestTimes)); } catch (e) {}
+            }
             if (!completedLevels.includes(currentLevel)) completedLevels.push(currentLevel);
             if (!LEVEL_CONFIGS[currentLevel].special && currentLevel >= unlockedLevel && currentLevel < 10) unlockedLevel = currentLevel + 1;
             saveProgress();
@@ -1281,7 +1386,7 @@
             const config = LEVEL_CONFIGS[currentLevel];
 
             document.getElementById('victory-chops').innerText = `${totalChops} 次`;
-            document.getElementById('victory-math-insight').innerHTML = config.insight;
+            document.getElementById('victory-math-insight').innerHTML = `<div class="text-emerald-300 font-bold mb-2">本次用時：${formatTime(elapsedMs)}　｜　最快紀錄：${formatTime(getBestTime(currentLevel))}</div>${config.insight}`;
 
             victoryModal.classList.remove('hidden');
         }
@@ -1386,6 +1491,20 @@
             });
 
             refreshLevelButtons();
+            try {
+                const savedGame = JSON.parse(localStorage.getItem(ACTIVE_GAME_KEY) || 'null');
+                if (savedGame && Array.isArray(savedGame.roots) && savedGame.roots.length && LEVEL_CONFIGS[savedGame.level]) {
+                    document.getElementById('resume-summary').textContent = `關卡 ${savedGame.level}｜已砍 ${savedGame.totalChops || 0} 次｜用時 ${formatTime(savedGame.elapsedMs || 0)}`;
+                    const resumeModal = document.getElementById('modal-resume');
+                    resumeModal.classList.remove('hidden'); resumeModal.classList.add('flex');
+                }
+            } catch (e) { clearActiveGameSave(); }
+            timerInterval = setInterval(() => {
+                if (gameActive && !isPaused) {
+                    elapsedMs += 1000; updateTimerDisplay();
+                    if (elapsedMs % 5000 === 0) saveActiveGame();
+                }
+            }, 1000);
             document.querySelectorAll('.level-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const level = parseInt(btn.getAttribute('data-level'));
@@ -1398,7 +1517,46 @@
                 startCurrentLevelGameplay();
             });
 
+            document.getElementById('btn-pause').addEventListener('click', () => {
+                if (!gameActive) return;
+                isPaused = true;
+                saveActiveGame();
+                const modal = document.getElementById('modal-pause');
+                modal.classList.remove('hidden'); modal.classList.add('flex');
+            });
+            document.getElementById('btn-pause-resume').addEventListener('click', () => {
+                isPaused = false;
+                const modal = document.getElementById('modal-pause');
+                modal.classList.add('hidden'); modal.classList.remove('flex');
+                saveActiveGame();
+            });
+            document.getElementById('btn-pause-exit').addEventListener('click', () => {
+                saveActiveGame(); gameActive = false; isPaused = false;
+                const pauseModal = document.getElementById('modal-pause');
+                pauseModal.classList.add('hidden'); pauseModal.classList.remove('flex');
+                document.getElementById('hud-stats').classList.add('hidden');
+                document.getElementById('hud-controls-hint').classList.add('hidden');
+                document.getElementById('modal-level-select').classList.remove('hidden');
+            });
+            document.getElementById('btn-resume-continue').addEventListener('click', () => {
+                try {
+                    const data = JSON.parse(localStorage.getItem(ACTIVE_GAME_KEY) || 'null');
+                    if (data && Array.isArray(data.roots) && LEVEL_CONFIGS[data.level]) resumeSavedGame(data);
+                    else { clearActiveGameSave(); document.getElementById('modal-resume').classList.add('hidden'); document.getElementById('modal-resume').classList.remove('flex'); }
+                } catch (e) { clearActiveGameSave(); }
+            });
+            document.getElementById('btn-resume-abandon').addEventListener('click', () => {
+                clearActiveGameSave();
+                const modal = document.getElementById('modal-resume');
+                modal.classList.add('hidden'); modal.classList.remove('flex');
+            });
+            window.addEventListener('beforeunload', () => { if (gameActive || isPaused) saveActiveGame(); });
+            window.addEventListener('pagehide', () => { if (gameActive || isPaused) saveActiveGame(); });
+
             document.getElementById('btn-home').addEventListener('click', () => {
+                saveActiveGame();
+                gameActive = false; isPaused = false;
+                document.getElementById('modal-pause').classList.add('hidden');
                 document.getElementById('modal-level-select').classList.remove('hidden');
                 document.getElementById('modal-notice').classList.add('hidden');
                 document.getElementById('modal-victory').classList.add('hidden');
@@ -1410,6 +1568,7 @@
             });
 
             document.getElementById('btn-relevel').addEventListener('click', () => {
+                clearActiveGameSave();
                 document.getElementById('modal-victory').classList.add('hidden');
                 loadLevel(currentLevel);
             });
