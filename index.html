@@ -460,9 +460,9 @@
         };
 
         /* -------------------------------------------------------------------------
-           關卡設計說明（maxChops = 「最糟狀況」下的最大砍擊次數，已用窮舉驗證）
+           關卡設計說明（特別關卡的步數上界依增生規則推算；未完成瀏覽器全流程實測前不宣稱已窮舉驗證）
            規則：砍掉分支頭 → 其頸部連同剩餘子樹「額外複製 2 份」接回祖父節點。
-           每關皆為精確 9 顆初始頭；maxChops 嚴格遞增，第 10 關不超過 1000。
+           每關皆為精確 9 顆初始頭；第 10 關目標不超過 1000。special_02 / special_03 使用指定的第二、三層分布。
 
            記號：.=蛇頭  (..)=一條頸上 2 頭  (.(.))=一頭 + 一條小分支
            Lv1  . . . . . . . . .                      → 9
@@ -570,14 +570,17 @@
             12: {
                 maxChops: 5000,
                 special: true,
-                insight: "<b>特別挑戰 II：</b>9 顆初始頭分散在 6 頭枝與 3 頭枝，避免全部擠在同一個深層節點。依本遊戲的增生規則，T(1)=1、T(n)=1+3T(n−1)，所以最糟步數上界為 T(6)+T(3)=364+13=377 次，嚴格低於 5,000 次。",
-                buildTree: () => [branch(6), branch(3)]
+                insight: "<b>特別挑戰 II：</b>共 9 顆初始頭。第一條蛇有 3 顆第二層頭，另有一條第三層分枝帶 2 顆頭；第二條蛇有 4 顆第二層頭。依目前增生規則推算，最糟狀況為 161 次，低於 5,000 次。",
+                buildTree: () => [
+                    createNode([leaf(), leaf(), leaf(), createNode([leaf(), leaf()])]),
+                    branch(4)
+                ]
             },
             13: {
                 maxChops: 10000,
                 special: true,
-                insight: "<b>特別挑戰 III：</b>9 顆初始頭分散在 7 頭枝與 2 頭枝，不再把 9 顆頭全部集中在同一條主枝。依 T(1)=1、T(n)=1+3T(n−1)，最糟步數上界為 T(7)+T(2)=1,093+4=1,097 次，嚴格低於 10,000 次。",
-                buildTree: () => [branch(7), branch(2)]
+                insight: "<b>特別挑戰 III：</b>只有一條蛇，9 顆頭全部直接長在第二層，不放入更深的分枝。依 T(1)=1、T(n)=1+3T(n−1)，最糟狀況為 T(9)=9,841 次，低於 10,000 次。",
+                buildTree: () => [branch(9)]
             }
         };
 
@@ -1355,12 +1358,12 @@
                 : `關卡 ${levelNum} 挑戰提示`;
 
             if (config.special) {
-                const target = levelNum === 11 ? '2,000 次以下（仍需獨立驗證）' : (levelNum === 12 ? '最糟不超過 377 次，低於 5,000 次上限' : '最糟不超過 1,097 次，低於 10,000 次上限');
+                const target = levelNum === 11 ? '2,000 次以下（仍需獨立驗證）' : (levelNum === 12 ? '最糟約 161 次，低於 5,000 次上限' : '最糟 9,841 次，低於 10,000 次上限');
                 noticeBody.innerHTML = `
                     <div class="text-rose-300 font-bold mb-1.5"><i class="fa-solid fa-bolt"></i> 柯比－巴黎數量爆炸挑戰</div>
-                    <p class="text-slate-200 leading-relaxed">本系列初始有 <b>9 顆蛇頭</b>。special_02 與 special_03 將蛇頭分散在兩條獨立分枝，不再把大部分蛇頭集中在同一個深層節點；砍掉分枝蛇頭後，該分枝會依規則增生。</p>
-                    <p class="mt-2 text-amber-300">步數上界：<b>${target}</b>。</p>
-                    <p class="mt-2 text-xs text-slate-400">special_02：6 頭枝＋3 頭枝；special_03：7 頭枝＋2 頭枝。special_01 的步數上界仍需另外驗證。</p>
+                    <p class="text-slate-200 leading-relaxed">本系列初始有 <b>9 顆蛇頭</b>。special_02 的第一條蛇有 3 顆第二層頭，並有一條第三層分枝帶 2 顆頭；第二條蛇有 4 顆第二層頭。special_03 則只有一條蛇，9 顆頭全部在第二層。</p>
+                    <p class="mt-2 text-amber-300">依目前增生規則推算的最糟步數：<b>${target}</b>。</p>
+                    <p class="mt-2 text-xs text-slate-400">special_02：161 次；special_03：9,841 次。special_01 的步數上界仍需另外驗證。</p>
                 `;
             } else if (levelNum === 1) {
                 noticeBody.innerHTML = `
