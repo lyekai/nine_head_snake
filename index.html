@@ -90,16 +90,42 @@
             user-select: none;
             -webkit-user-select: none;
             -webkit-tap-highlight-color: transparent;
+            appearance: none;
+            -webkit-appearance: none;
             transform: translate3d(0, 0, 0);
             will-change: box-shadow;
+        }
+        /* 技能按鈕位置鎖定：所有互動狀態都禁止位移、縮放與動畫 */
+        #btn-big-bang,
+        #btn-big-bang:hover,
+        #btn-big-bang:active,
+        #btn-big-bang:focus,
+        #btn-big-bang:focus-visible,
+        #btn-big-bang:disabled,
+        #btn-big-bang.ready {
+            position: fixed !important;
+            right: max(16px, env(safe-area-inset-right)) !important;
+            bottom: max(104px, calc(env(safe-area-inset-bottom) + 92px)) !important;
+            transform: none !important;
+            translate: none !important;
+            scale: none !important;
+            rotate: none !important;
+            animation: none !important;
+            transition: none !important;
+            will-change: auto !important;
+        }
+        #btn-big-bang:hover,
+        #btn-big-bang:active,
+        #btn-big-bang:focus,
+        #btn-big-bang:focus-visible {
+            box-shadow: 0 0 18px rgba(245,158,11,.38), inset 0 0 14px rgba(251,191,36,.12) !important;
+            outline: none;
         }
         #btn-big-bang.visible { display: flex; }
         #btn-big-bang .skill-icon { font-size: 28px; line-height: 1; filter: drop-shadow(0 0 7px rgba(251,191,36,.8)); }
         #btn-big-bang .skill-title { font-size: 12px; font-weight: 900; letter-spacing: .08em; }
         #btn-big-bang .skill-cooldown { font-size: 10px; color: #fde68a; font-family: 'Orbitron', sans-serif; }
         #btn-big-bang:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .72; }
-        #btn-big-bang.ready { animation: skillPulse 1.7s ease-in-out infinite; }
-        @keyframes skillPulse { 0%,100% { box-shadow: 0 0 12px rgba(245,158,11,.3), inset 0 0 12px rgba(251,191,36,.1); } 50% { box-shadow: 0 0 24px rgba(251,191,36,.8), inset 0 0 18px rgba(251,191,36,.22); } }
         #big-bang-fx { position: fixed; inset: 0; z-index: 45; pointer-events: none; overflow: hidden; display: none; }
         #big-bang-fx.active { display: block; }
         #big-bang-fx .blast-flash { position:absolute; inset:0; background: radial-gradient(circle at 50% 52%, rgba(255,255,255,.98) 0%, rgba(253,224,71,.75) 12%, rgba(249,115,22,.32) 32%, rgba(239,68,68,.08) 56%, transparent 72%); animation: blastFlash .82s ease-out forwards; }
@@ -111,11 +137,17 @@
         @keyframes blastCore { 0%{opacity:0;transform:translate(-50%,-50%) scale(.2)} 18%{opacity:1} 100%{opacity:0;transform:translate(-50%,-50%) scale(7)} }
         @keyframes blastSpark { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(var(--sx),var(--sy)) scale(.1)} }
         @media (max-width: 640px) {
-            #btn-big-bang {
+            #btn-big-bang,
+            #btn-big-bang:hover,
+            #btn-big-bang:active,
+            #btn-big-bang:focus,
+            #btn-big-bang:focus-visible,
+            #btn-big-bang:disabled,
+            #btn-big-bang.ready {
                 width: 78px;
                 height: 78px;
-                right: max(12px, env(safe-area-inset-right));
-                bottom: max(100px, calc(env(safe-area-inset-bottom) + 88px));
+                right: max(12px, env(safe-area-inset-right)) !important;
+                bottom: max(100px, calc(env(safe-area-inset-bottom) + 88px)) !important;
             }
             #btn-big-bang .skill-icon { font-size:23px; }
         }
