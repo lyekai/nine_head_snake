@@ -66,6 +66,46 @@
             z-index: 50;
         }
 
+        /* Special-level Big Bang skill */
+        #btn-big-bang {
+            position: fixed;
+            right: max(16px, env(safe-area-inset-right));
+            bottom: max(18px, env(safe-area-inset-bottom));
+            z-index: 25;
+            width: 92px;
+            height: 92px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            border-radius: 14px;
+            border: 2px solid rgba(251,191,36,.85);
+            color: #fef3c7;
+            background: linear-gradient(145deg, rgba(120,53,15,.96), rgba(30,41,59,.97));
+            box-shadow: 0 0 18px rgba(245,158,11,.38), inset 0 0 14px rgba(251,191,36,.12);
+            pointer-events: auto;
+            touch-action: manipulation;
+        }
+        #btn-big-bang.visible { display: flex; }
+        #btn-big-bang .skill-icon { font-size: 28px; line-height: 1; filter: drop-shadow(0 0 7px rgba(251,191,36,.8)); }
+        #btn-big-bang .skill-title { font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+        #btn-big-bang .skill-cooldown { font-size: 10px; color: #fde68a; font-family: 'Orbitron', sans-serif; }
+        #btn-big-bang:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .72; }
+        #btn-big-bang.ready { animation: skillPulse 1.7s ease-in-out infinite; }
+        @keyframes skillPulse { 0%,100% { box-shadow: 0 0 12px rgba(245,158,11,.3), inset 0 0 12px rgba(251,191,36,.1); } 50% { box-shadow: 0 0 24px rgba(251,191,36,.8), inset 0 0 18px rgba(251,191,36,.22); } }
+        #big-bang-fx { position: fixed; inset: 0; z-index: 45; pointer-events: none; overflow: hidden; display: none; }
+        #big-bang-fx.active { display: block; }
+        #big-bang-fx .blast-flash { position:absolute; inset:0; background: radial-gradient(circle at 50% 52%, rgba(255,255,255,.98) 0%, rgba(253,224,71,.75) 12%, rgba(249,115,22,.32) 32%, rgba(239,68,68,.08) 56%, transparent 72%); animation: blastFlash .82s ease-out forwards; }
+        #big-bang-fx .blast-ring { position:absolute; left:50%; top:52%; width:18vmin; height:18vmin; border:7px solid rgba(255,245,157,.98); border-radius:50%; transform:translate(-50%,-50%) scale(.15); box-shadow:0 0 30px #f59e0b, inset 0 0 20px #fb923c; animation: blastRing .9s cubic-bezier(.12,.6,.2,1) forwards; }
+        #big-bang-fx .blast-core { position:absolute; left:50%; top:52%; width:12vmin; height:12vmin; border-radius:50%; transform:translate(-50%,-50%); background:radial-gradient(circle,#fff 0%,#fef08a 22%,#fb923c 54%,rgba(239,68,68,0) 75%); filter:blur(1px); animation: blastCore .72s ease-out forwards; }
+        #big-bang-fx .blast-spark { position:absolute; left:50%; top:52%; width:7px; height:7px; border-radius:50%; background:#fff7b2; box-shadow:0 0 12px 4px #f59e0b; animation: blastSpark .85s cubic-bezier(.12,.6,.2,1) forwards; }
+        @keyframes blastFlash { 0%{opacity:0} 12%{opacity:1} 100%{opacity:0} }
+        @keyframes blastRing { 0%{opacity:1;transform:translate(-50%,-50%) scale(.15)} 100%{opacity:0;transform:translate(-50%,-50%) scale(8)} }
+        @keyframes blastCore { 0%{opacity:0;transform:translate(-50%,-50%) scale(.2)} 18%{opacity:1} 100%{opacity:0;transform:translate(-50%,-50%) scale(7)} }
+        @keyframes blastSpark { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(var(--sx),var(--sy)) scale(.1)} }
+        @media (max-width: 640px) { #btn-big-bang { width:78px; height:78px; right:12px; bottom:14px; } #btn-big-bang .skill-icon { font-size:23px; } }
+
 
         .level-btn { position: relative; }
         .level-star { position:absolute; bottom:5px; left:7px; color:#fbbf24; font-size:13px; filter:drop-shadow(0 0 5px rgba(251,191,36,.8)); }
@@ -157,7 +197,15 @@
             <i class="fa-solid fa-hand-pointer mr-1 animate-bounce text-rose-400"></i> 拖曳任意方向旋轉星球（360° 自由轉動）/ 點擊立體蛇頭進行砍伐
         </div>
 
+        <button id="btn-big-bang" type="button" aria-label="大爆炸技能，消滅所有直接連接星球的蛇頭" title="大爆炸：消滅所有直接連接星球的蛇頭（冷卻 30 秒）">
+            <i class="fa-solid fa-burst skill-icon"></i>
+            <span class="skill-title">大爆炸</span>
+            <span id="big-bang-cooldown" class="skill-cooldown">READY</span>
+        </button>
+
     </div>
+
+    <div id="big-bang-fx" aria-hidden="true"></div>
 
     <!-- MODAL 1: Level Select Menu -->
     <div id="modal-level-select" class="fixed inset-0 z-20 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
@@ -637,7 +685,7 @@
         }
         function saveActiveGame() {
             if (!gameActive || !currentTreeRoots.length) return;
-            const data = { version: 1, level: currentLevel, roots: currentTreeRoots, totalChops, elapsedMs, savedAt: Date.now() };
+            const data = { version: 1, level: currentLevel, roots: currentTreeRoots, totalChops, elapsedMs, bigBangCooldownRemainingMs, savedAt: Date.now() };
             try { localStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify(data)); } catch (e) {}
         }
         function clearActiveGameSave() {
@@ -675,6 +723,7 @@
             currentLevel = data.level;
             totalChops = data.totalChops || 0;
             elapsedMs = data.elapsedMs || 0;
+            bigBangCooldownRemainingMs = Math.max(0, Number(data.bigBangCooldownRemainingMs) || 0);
             globalNodeCounter = findMaxNodeId(data.roots) + 1;
             currentTreeRoots = data.roots;
             currentMaxChops = (LEVEL_CONFIGS[currentLevel] || {}).maxChops || 0;
@@ -738,6 +787,8 @@
             });
         }
         let interactiveHeadMeshes = [];
+        let bigBangCooldownRemainingMs = 0;
+        let bigBangFxTimeout = null;
 
         function init3D() {
             const container = document.getElementById('canvas-container');
@@ -1196,6 +1247,69 @@
            6. GAMEPLAY ENGINE & INTERACTION LOGIC
            ========================================================================= */
 
+        function isBigBangLevel() { return currentLevel >= 11 && currentLevel <= 13; }
+
+        function updateBigBangButton() {
+            const button = document.getElementById('btn-big-bang');
+            const label = document.getElementById('big-bang-cooldown');
+            if (!button || !label) return;
+            const show = isBigBangLevel() && (gameActive || isPaused);
+            button.classList.toggle('visible', show);
+            if (!show) return;
+            const seconds = Math.ceil(Math.max(0, bigBangCooldownRemainingMs) / 1000);
+            const ready = seconds <= 0;
+            button.disabled = !gameActive || isPaused || !ready || countDirectPlanetHeads(currentTreeRoots) === 0;
+            button.classList.toggle('ready', ready && gameActive && !isPaused && countDirectPlanetHeads(currentTreeRoots) > 0);
+            label.textContent = ready ? 'READY' : `${seconds}s`;
+            button.title = ready
+                ? '大爆炸：消滅所有直接連接星球的蛇頭'
+                : `大爆炸冷卻中，還需 ${seconds} 秒`;
+        }
+
+        // 只挑出直接掛在星球根部、且本身就是蛇頭的根節點；不影響有分枝的蛇身。
+        function countDirectPlanetHeads(roots) {
+            return (roots || []).filter(node => !node.children || node.children.length === 0).length;
+        }
+
+        function triggerBigBangFX() {
+            const fx = document.getElementById('big-bang-fx');
+            if (!fx) return;
+            if (bigBangFxTimeout) clearTimeout(bigBangFxTimeout);
+            fx.innerHTML = '<div class="blast-flash"></div><div class="blast-ring"></div><div class="blast-core"></div>';
+            for (let i = 0; i < 34; i++) {
+                const spark = document.createElement('span');
+                spark.className = 'blast-spark';
+                const angle = Math.PI * 2 * i / 34 + (Math.random() - 0.5) * 0.18;
+                const distance = 25 + Math.random() * Math.max(window.innerWidth, window.innerHeight) * 0.68;
+                spark.style.setProperty('--sx', `${Math.cos(angle) * distance}px`);
+                spark.style.setProperty('--sy', `${Math.sin(angle) * distance}px`);
+                spark.style.animationDelay = `${Math.random() * 0.09}s`;
+                fx.appendChild(spark);
+            }
+            fx.classList.add('active');
+            bigBangFxTimeout = setTimeout(() => { fx.classList.remove('active'); fx.innerHTML = ''; }, 1050);
+        }
+
+        function useBigBangSkill() {
+            if (!gameActive || isPaused || !isBigBangLevel() || bigBangCooldownRemainingMs > 0) return;
+            const directHeadIds = new Set(currentTreeRoots
+                .filter(node => !node.children || node.children.length === 0)
+                .map(node => node.id));
+            if (!directHeadIds.size) { updateBigBangButton(); return; }
+
+            // 先播全螢幕爆炸，再一次移除所有直接連接星球的根部蛇頭。
+            triggerBigBangFX();
+            sfx.playChop();
+            const removedCount = directHeadIds.size;
+            currentTreeRoots = currentTreeRoots.filter(node => !directHeadIds.has(node.id));
+            totalChops += removedCount;
+            bigBangCooldownRemainingMs = 30000;
+            renderHydraTrees();
+            if (currentTreeRoots.length) saveActiveGame(); else clearActiveGameSave();
+            updateBigBangButton();
+            if (countRemainingHeads(currentTreeRoots) === 0) setTimeout(showVictoryModal, 650);
+        }
+
         function countRemainingHeads(nodes) {
             let count = 0;
             function traverse(node) {
@@ -1336,12 +1450,15 @@
             document.getElementById('hud-level').innerText = `LV.${String(currentLevel).padStart(2, '0')}`;
             document.getElementById('hud-chops').innerText = totalChops;
             document.getElementById('hud-heads').innerText = remaining;
+            updateBigBangButton();
         }
 
         function loadLevel(levelNum) {
             currentLevel = levelNum;
             totalChops = 0;
             elapsedMs = 0;
+            bigBangCooldownRemainingMs = 0;
+            updateBigBangButton();
             gameActive = false;
             isPaused = false;
             updateTimerDisplay();
@@ -1426,6 +1543,7 @@
             document.getElementById('victory-math-insight').innerHTML = `<div class="text-emerald-300 font-bold mb-2">本次用時：${formatTime(elapsedMs)}　｜　最快紀錄：${formatTime(getBestTime(currentLevel))}</div>${config.insight}`;
 
             victoryModal.classList.remove('hidden');
+            updateBigBangButton();
         }
 
         let rulesPage = 0;
@@ -1535,6 +1653,8 @@
             timerInterval = setInterval(() => {
                 if (gameActive && !isPaused) {
                     elapsedMs += 1000; updateTimerDisplay();
+                    if (bigBangCooldownRemainingMs > 0) bigBangCooldownRemainingMs = Math.max(0, bigBangCooldownRemainingMs - 1000);
+                    updateBigBangButton();
                     if (elapsedMs % 5000 === 0) saveActiveGame();
                 }
             }, 1000);
@@ -1549,6 +1669,7 @@
             document.getElementById('btn-start-level').addEventListener('click', () => {
                 startCurrentLevelGameplay();
             });
+            document.getElementById('btn-big-bang').addEventListener('click', useBigBangSkill);
 
             document.getElementById('btn-pause').addEventListener('click', () => {
                 if (!gameActive) return;
@@ -1556,12 +1677,14 @@
                 saveActiveGame();
                 const modal = document.getElementById('modal-pause');
                 modal.classList.remove('hidden'); modal.classList.add('flex');
+                updateBigBangButton();
             });
             document.getElementById('btn-pause-resume').addEventListener('click', () => {
                 isPaused = false;
                 const modal = document.getElementById('modal-pause');
                 modal.classList.add('hidden'); modal.classList.remove('flex');
                 saveActiveGame();
+                updateBigBangButton();
             });
             document.getElementById('btn-pause-exit').addEventListener('click', () => {
                 saveActiveGame(); gameActive = false; isPaused = false;
@@ -1609,6 +1732,7 @@
                 
                 currentTreeRoots = [];
                 renderHydraTrees();
+                updateBigBangButton();
             });
 
             document.getElementById('btn-relevel').addEventListener('click', () => {
