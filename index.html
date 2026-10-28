@@ -568,19 +568,19 @@
                 ]
             },
             12: {
+                maxChops: 10000,
+                special: true,
+                insight: "<b>特別挑戰 II：</b>只有一條蛇，9 顆頭全部直接長在第二層，不放入更深的分枝。依 T(1)=1、T(n)=1+3T(n−1)，最糟狀況為 T(9)=9,841 次，低於 10,000 次。",
+                buildTree: () => [branch(9)]
+            },
+            13: {
                 maxChops: 5000,
                 special: true,
-                insight: "<b>特別挑戰 II：</b>共 9 顆初始頭。第一條蛇有 3 顆第二層頭，另有一條第三層分枝帶 2 顆頭；第二條蛇有 4 顆第二層頭。依目前增生規則推算，最糟狀況為 161 次，低於 5,000 次。",
+                insight: "<b>特別挑戰 III：</b>共 9 顆初始頭。第一條蛇有 3 顆第二層頭，另有一條第三層分枝帶 2 顆頭；第二條蛇有 4 顆第二層頭。依目前增生規則推算，最糟狀況為 161 次，低於 5,000 次。",
                 buildTree: () => [
                     createNode([leaf(), leaf(), leaf(), createNode([leaf(), leaf()])]),
                     branch(4)
                 ]
-            },
-            13: {
-                maxChops: 10000,
-                special: true,
-                insight: "<b>特別挑戰 III：</b>只有一條蛇，9 顆頭全部直接長在第二層，不放入更深的分枝。依 T(1)=1、T(n)=1+3T(n−1)，最糟狀況為 T(9)=9,841 次，低於 10,000 次。",
-                buildTree: () => [branch(9)]
             }
         };
 
@@ -1358,12 +1358,12 @@
                 : `關卡 ${levelNum} 挑戰提示`;
 
             if (config.special) {
-                const target = levelNum === 11 ? '2,000 次以下（仍需獨立驗證）' : (levelNum === 12 ? '最糟約 161 次，低於 5,000 次上限' : '最糟 9,841 次，低於 10,000 次上限');
+                const target = levelNum === 11 ? '2,000 次以下（仍需獨立驗證）' : (levelNum === 12 ? '最糟 9,841 次，低於 10,000 次上限' : '最糟 161 次，低於 5,000 次上限');
                 noticeBody.innerHTML = `
                     <div class="text-rose-300 font-bold mb-1.5"><i class="fa-solid fa-bolt"></i> 柯比－巴黎數量爆炸挑戰</div>
-                    <p class="text-slate-200 leading-relaxed">本系列初始有 <b>9 顆蛇頭</b>。special_02 的第一條蛇有 3 顆第二層頭，並有一條第三層分枝帶 2 顆頭；第二條蛇有 4 顆第二層頭。special_03 則只有一條蛇，9 顆頭全部在第二層。</p>
+                    <p class="text-slate-200 leading-relaxed">本系列初始有 <b>9 顆蛇頭</b>。special_02 是單一蛇身，9 顆頭全部在第二層；special_03 則有兩條蛇，第一條有 3 顆第二層頭及一條帶 2 顆頭的第三層分枝，第二條有 4 顆第二層頭。</p>
                     <p class="mt-2 text-amber-300">依目前增生規則推算的最糟步數：<b>${target}</b>。</p>
-                    <p class="mt-2 text-xs text-slate-400">special_02：161 次；special_03：9,841 次。special_01 的步數上界仍需另外驗證。</p>
+                    <p class="mt-2 text-xs text-slate-400">special_02：9,841 次；special_03：161 次。special_01 的步數上界仍需另外驗證。</p>
                 `;
             } else if (levelNum === 1) {
                 noticeBody.innerHTML = `
