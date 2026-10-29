@@ -217,6 +217,13 @@
         .glow-text {
             text-shadow: 0 0 12px rgba(56, 189, 248, 0.8), 0 0 24px rgba(56, 189, 248, 0.4);
         }
+
+        @media (max-width: 360px) {
+            #btn-language-game { padding-left: .35rem; padding-right: .35rem; font-size: 10px; }
+            header h1 { font-size: 1rem; gap: .25rem; }
+            header .space-x-3 > :not([hidden]) ~ :not([hidden]) { margin-left: .4rem; }
+        }
+
     </style>
 </head>
 <body class="w-screen relative">
@@ -229,7 +236,7 @@
         
         <!-- Header -->
         <header class="flex flex-wrap justify-between items-center gap-2 sm:gap-3 w-full max-w-6xl mx-auto pointer-events-none">
-            <div class="flex items-center space-x-3 pointer-events-auto">
+            <div class="order-1 flex items-center space-x-3 pointer-events-auto min-w-0">
                 <button id="btn-home" class="glass-btn p-2.5 sm:p-3 rounded-xl text-sky-400 hover:text-white flex items-center justify-center cursor-pointer">
                     <i class="fa-solid fa-house text-lg"></i>
                 </button>
@@ -242,7 +249,7 @@
             </div>
 
             <!-- Stats Header HUD -->
-            <div id="hud-stats" class="hidden flex items-center justify-around w-full sm:w-auto gap-2 sm:gap-6 glass-panel px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl pointer-events-auto">
+            <div id="hud-stats" class="hidden order-3 lg:order-2 flex items-center justify-around w-full sm:w-auto gap-2 sm:gap-6 glass-panel px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl pointer-events-auto">
                 <div class="text-center flex-1 sm:flex-none">
                     <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">當前關卡</span>
                     <span id="hud-level" class="text-base sm:text-lg font-bold text-sky-400 font-orbitron">LV.01</span>
@@ -262,9 +269,11 @@
                     <span class="text-[10px] text-slate-400 block uppercase tracking-widest whitespace-nowrap">用時</span>
                     <span id="hud-time" class="text-base sm:text-lg font-bold text-emerald-300 font-orbitron">00:00</span>
                 </div>
-                <button id="btn-pause" class="glass-btn px-3 py-2 rounded-lg text-sky-300 font-bold whitespace-nowrap" title="暫停遊戲"><i class="fa-solid fa-pause mr-1"></i><span>暫停</span></button>
             </div>
-            <button id="btn-language-game" class="glass-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-violet-200 pointer-events-auto" type="button" aria-label="切換語言">🌐 English</button>
+            <div class="order-2 lg:order-3 flex items-center gap-2 pointer-events-auto shrink-0">
+                <button id="btn-pause" class="hidden glass-btn px-2.5 sm:px-3 py-2 rounded-lg text-sky-300 font-bold whitespace-nowrap shrink-0" title="暫停遊戲" aria-label="暫停遊戲"><i class="fa-solid fa-pause sm:mr-1"></i><span class="hidden sm:inline">暫停</span></button>
+                <button id="btn-language-game" class="glass-btn px-2 sm:px-3 py-2 rounded-lg text-[11px] sm:text-sm font-bold text-violet-200 pointer-events-auto whitespace-nowrap" type="button" aria-label="切換語言">🌐 English</button>
+            </div>
         </header>
 
         <!-- Dynamic Control Hint -->
@@ -833,6 +842,7 @@
             document.getElementById('modal-notice').classList.add('hidden');
             document.getElementById('modal-pause').classList.add('hidden');
             document.getElementById('hud-stats').classList.remove('hidden');
+            document.getElementById('btn-pause').classList.remove('hidden');
             document.getElementById('hud-controls-hint').classList.remove('hidden');
             updateTimerDisplay(); renderHydraTrees(); saveActiveGame();
         }
@@ -1625,6 +1635,7 @@
             isPaused = false;
             saveActiveGame();
             document.getElementById('hud-stats').classList.remove('hidden');
+            document.getElementById('btn-pause').classList.remove('hidden');
             document.getElementById('hud-controls-hint').classList.remove('hidden');
 
             renderHydraTrees();
@@ -1634,6 +1645,7 @@
             if (!gameActive) return;
             gameActive = false;
             isPaused = false;
+            document.getElementById('btn-pause').classList.add('hidden');
             clearActiveGameSave();
             sfx.playWin();
             const previousBest = getBestTime(currentLevel);
@@ -1937,6 +1949,7 @@
                 const pauseModal = document.getElementById('modal-pause');
                 pauseModal.classList.add('hidden'); pauseModal.classList.remove('flex');
                 document.getElementById('hud-stats').classList.add('hidden');
+                document.getElementById('btn-pause').classList.add('hidden');
                 document.getElementById('hud-controls-hint').classList.add('hidden');
                 document.getElementById('modal-level-select').classList.remove('hidden');
             });
@@ -1974,6 +1987,7 @@
                 document.getElementById('modal-notice').classList.add('hidden');
                 document.getElementById('modal-victory').classList.add('hidden');
                 document.getElementById('hud-stats').classList.add('hidden');
+                document.getElementById('btn-pause').classList.add('hidden');
                 document.getElementById('hud-controls-hint').classList.add('hidden');
                 
                 currentTreeRoots = [];
