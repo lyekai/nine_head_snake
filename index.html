@@ -264,6 +264,7 @@
                 </div>
                 <button id="btn-pause" class="glass-btn px-3 py-2 rounded-lg text-sky-300 font-bold whitespace-nowrap" title="暫停遊戲"><i class="fa-solid fa-pause mr-1"></i><span>暫停</span></button>
             </div>
+            <button id="btn-language-game" class="glass-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-violet-200 pointer-events-auto" type="button" aria-label="切換語言">🌐 English</button>
         </header>
 
         <!-- Dynamic Control Hint -->
@@ -294,7 +295,10 @@
                 </p>
             </div>
 
-            <button id="btn-open-rules" class="glass-btn px-5 py-2 rounded-xl font-bold text-amber-300 border-amber-400/50"><i class="fa-solid fa-book-open mr-2"></i>遊戲規則</button>
+            <div class="flex flex-wrap justify-center gap-2">
+                <button id="btn-language-menu" class="glass-btn px-4 py-2 rounded-xl font-bold text-violet-200" type="button">🌐 English</button>
+                <button id="btn-open-rules" class="glass-btn px-5 py-2 rounded-xl font-bold text-amber-300 border-amber-400/50"><i class="fa-solid fa-book-open mr-2"></i>遊戲規則</button>
+            </div>
 
             <!-- Level Grid (Top: 1-5, Bottom: 6-10) -->
             <div class="space-y-4">
@@ -363,6 +367,13 @@
                         </button>
                         <button class="level-btn special-level-btn glass-btn py-3 px-1 sm:p-4 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer border-fuchsia-500/40" data-level="13">
                             <span class="text-[10px] text-fuchsia-300 font-orbitron">special_03</span>
+                        </button>
+                    </div>
+                    <div class="mt-3">
+                        <button class="level-btn special-level-btn glass-btn w-full py-3 px-3 sm:p-4 rounded-xl flex flex-col items-center justify-center space-y-1 cursor-pointer border-violet-400/50 bg-violet-950/20" data-level="14">
+                            <span class="text-xs text-violet-300 font-black tracking-widest">不可能的任務</span>
+                            <span class="text-base sm:text-lg font-black text-violet-200">真・勒拿九頭蛇</span>
+                            <span class="text-[10px] text-violet-300 font-orbitron">THE TRUE LERNAEAN HYDRA</span>
                         </button>
                     </div>
                 </div>
@@ -709,6 +720,14 @@
                     createNode([leaf(), leaf(), createNode([leaf()]), createNode([leaf()])]),
                     createNode([leaf(), leaf(), leaf(), leaf(), createNode([leaf()])])
                 ]
+            },
+            14: {
+                maxChops: 1000000,
+                special: true,
+                insight: "<b>真・勒拿九頭蛇：</b>九顆初始蛇頭全部位於第二層節點，並透過同一條根部頸部連接星球。大爆炸技能遵守原始規則：只消滅直接連接星球、且本身就是蛇頭的根部節點，因此本關雖會顯示技能框，但因沒有符合條件的蛇頭而無法使用。",
+                buildTree: () => [
+                    createNode(Array.from({ length: 9 }, () => leaf()))
+                ]
             }
         };
 
@@ -759,6 +778,7 @@
             row.className = 'mt-3 pt-3 border-t border-slate-700 text-emerald-300 font-bold';
             row.innerHTML = best === null ? '最快通關時間：尚無紀錄' : `最快通關時間：${formatTime(best)}`;
             body.appendChild(row);
+            applyLanguage();
         }
         function saveActiveGame() {
             if (!gameActive || !currentTreeRoots.length) return;
@@ -778,6 +798,7 @@
         function showResumePrompt(savedGame, pendingLevel = null) {
             pendingLevelSelection = pendingLevel;
             document.getElementById('resume-summary').textContent = `關卡 ${savedGame.level}｜已砍 ${savedGame.totalChops || 0} 次｜用時 ${formatTime(savedGame.elapsedMs || 0)}`;
+            applyLanguage();
             const modal = document.getElementById('modal-resume');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -825,7 +846,7 @@
             const saved = parseInt(localStorage.getItem(SAVE_KEY), 10);
             if (saved >= 1 && saved <= 10) unlockedLevel = saved;
             const completedSaved = JSON.parse(localStorage.getItem(COMPLETED_KEY) || '[]');
-            if (Array.isArray(completedSaved)) completedLevels = completedSaved.filter(n => Number.isInteger(n) && n >= 1 && n <= 13);
+            if (Array.isArray(completedSaved)) completedLevels = completedSaved.filter(n => Number.isInteger(n) && n >= 1 && n <= 14);
         } catch (e) {}
         function saveProgress() {
             try {
@@ -838,6 +859,7 @@
             if (lv === 11) return true;
             if (lv === 12) return completedLevels.includes(11);
             if (lv === 13) return completedLevels.includes(12);
+            if (lv === 14) return true; // 終極挑戰可直接選擇
             return false;
         }
         function refreshLevelButtons() {
@@ -862,6 +884,7 @@
                     btn.appendChild(star);
                 } else if (!completed && star) star.remove();
             });
+            applyLanguage();
         }
         let interactiveHeadMeshes = [];
         let bigBangCooldownRemainingMs = 0;
@@ -1324,7 +1347,7 @@
            6. GAMEPLAY ENGINE & INTERACTION LOGIC
            ========================================================================= */
 
-        function isBigBangLevel() { return currentLevel >= 11 && currentLevel <= 13; }
+        function isBigBangLevel() { return currentLevel >= 11 && currentLevel <= 14; }
 
         function updateBigBangButton() {
             const button = document.getElementById('btn-big-bang');
@@ -1338,9 +1361,9 @@
             button.disabled = !gameActive || isPaused || !ready || countDirectPlanetHeads(currentTreeRoots) === 0;
             button.classList.toggle('ready', ready && gameActive && !isPaused && countDirectPlanetHeads(currentTreeRoots) > 0);
             label.textContent = ready ? 'READY' : `${seconds}s`;
-            button.title = ready
-                ? '大爆炸：消滅所有直接連接星球的蛇頭'
-                : `大爆炸冷卻中，還需 ${seconds} 秒`;
+            button.title = uiLanguage === 'en'
+                ? (ready ? 'Big Bang: Remove all heads directly connected to the planet' : `Big Bang cooldown: ${seconds}s remaining`)
+                : (ready ? '大爆炸：消滅所有直接連接星球的蛇頭' : `大爆炸冷卻中，還需 ${seconds} 秒`);
         }
 
         // 只挑出直接掛在星球根部、且本身就是蛇頭的根節點；不影響有分枝的蛇身。
@@ -1561,7 +1584,15 @@
                 ? `特別挑戰 ${levelNum - 10}：數量爆炸`
                 : `關卡 ${levelNum} 挑戰提示`;
 
-            if (config.special) {
+            if (levelNum === 14) {
+                noticeTitle.innerText = '不可能的任務：真・勒拿九頭蛇';
+                noticeBody.innerHTML = `
+                    <div class="text-violet-300 font-black mb-1.5"><i class="fa-solid fa-skull"></i> 不可能的任務 · 終極挑戰</div>
+                    <p class="text-slate-200 leading-relaxed">本關有 <b>9 顆初始蛇頭</b>，全部位於第二層節點，並透過根部頸部連接星球。砍掉第二層蛇頭時，該分支會依照原有規則增生。</p>
+                    <p class="mt-2 text-amber-300">大爆炸技能遵守原始規則：只能消滅直接連接星球、且本身就是蛇頭的根部節點。本關沒有這種蛇頭，因此技能框會顯示，但無法使用。</p>
+                    <p class="mt-2 text-xs text-slate-400">挑戰目標：在九頭蛇不斷增生的情況下，持續砍擊直到所有蛇頭消失。</p>
+                `;
+            } else if (config.special) {
                 const target = levelNum === 11 ? '2,000 次以下（仍需獨立驗證）' : (levelNum === 12 ? '最糟 9,841 次，低於 10,000 次上限' : '最糟 161 次，低於 5,000 次上限');
                 noticeBody.innerHTML = `
                     <div class="text-rose-300 font-bold mb-1.5"><i class="fa-solid fa-bolt"></i> 柯比－巴黎數量爆炸挑戰</div>
@@ -1584,6 +1615,7 @@
             }
 
             appendBestTimeToNotice(levelNum);
+            applyLanguage();
             noticeModal.classList.remove('hidden');
         }
 
@@ -1618,6 +1650,7 @@
 
             document.getElementById('victory-chops').innerText = `${totalChops} 次`;
             document.getElementById('victory-math-insight').innerHTML = `<div class="text-emerald-300 font-bold mb-2">本次用時：${formatTime(elapsedMs)}　｜　最快紀錄：${formatTime(getBestTime(currentLevel))}</div>${config.insight}`;
+            applyLanguage();
 
             victoryModal.classList.remove('hidden');
             updateBigBangButton();
@@ -1692,6 +1725,7 @@
             document.getElementById('btn-rules-prev').disabled = rulesPage === 0;
             document.getElementById('btn-rules-prev').classList.toggle('opacity-40', rulesPage === 0);
             document.getElementById('btn-rules-next').innerHTML = rulesPage === 2 ? '重新播放<i class="fa-solid fa-rotate-right ml-2"></i>' : '下一頁<i class="fa-solid fa-arrow-right ml-2"></i>';
+            applyLanguage();
         }
         function openRules() {
             rulesPage = 0;
@@ -1706,8 +1740,135 @@
             modal.classList.remove('flex');
         }
 
+        /* =========================================================================
+           BILINGUAL UI: explicit text dictionary; never replaces elements or event handlers.
+           Chinese remains the source language. New dynamic text is translated after each render.
+           ========================================================================= */
+        let uiLanguage = 'zh';
+        const EN_TEXT = {
+            '勒拿九頭蛇v.s.海克力斯':'The Lernaean Hydra vs. Hercules',
+            'Three.js（已改用自製的 360° 自由旋轉控制，不再需要 OrbitControls）':'Three.js (uses custom 360° free-rotation controls; OrbitControls is no longer needed)',
+            '已砍次數':'CHOPS','剩餘蛇頭':'HEADS LEFT','用時':'TIME','九頭蛇數學遊戲':'Hydra Math Game','選擇挑戰關卡 (通關後解鎖下一關)':'CHOOSE A LEVEL (Clear a level to unlock the next)',
+            '根部蛇頭：':'Root heads:','直接連接在星球上的蛇頭，砍掉後直接消滅，不引發增生。':'Heads attached directly to the planet disappear when chopped and do not trigger growth.','生長於頸部分支上的蛇頭，砍掉後該蛇頭消失，其所屬頸部分支會':'Heads growing on a branch disappear when chopped, and their neck branch is',
+            '每關都有「最糟砍擊次數」上限，逐關遞增，第 10 關無論怎麼亂砍都不會超過 911 次。':'Every level has an upper bound on the worst-case number of chops. It increases by level; Level 10 takes no more than 911 chops, regardless of chop order.',
+            '您的總砍擊次數':'TOTAL CHOPS','下一關':'Next Level','有尚未結束的遊戲，是否繼續？':'You have an unfinished game. Resume it?','繼續':'Resume','放棄':'Discard','遊戲已暫停':'Game Paused','保存並回到選關畫面':'Save and Return to Level Select',
+            '九頭蛇數學遊戲 · 組合數學與無窮序數':'Hydra Math Game · Combinatorics and Infinite Ordinals',
+            '當前關卡':'CURRENT LEVEL','已砍次數':'CHOPS','剩餘蛇頭':'HEADS LEFT','用時':'TIME',
+            '暫停':'Pause','拖曳任意方向旋轉星球（360° 自由轉動）/ 點擊立體蛇頭進行砍伐':'Drag to rotate the planet freely (360°) / Click a 3D hydra head to chop it',
+            '大爆炸':'BIG BANG','九頭蛇數學遊戲':'Hydra Math Game',
+            '每關初始皆有精確 9 顆蛇頭！隨著關卡提升，樹狀結構與深度增加，體驗柯比與巴黎（Kirby & Paris, 1982）的數學增生極限！':'Every level starts with exactly 9 heads! As levels advance, the tree structure and depth grow, exploring the mathematical limits of hydra growth described by Kirby and Paris (1982).',
+            '遊戲規則':'How to Play','選擇挑戰關卡 (通關後解鎖下一關)':'CHOOSE A LEVEL (Clear a level to unlock the next)',
+            '特別挑戰・數量爆炸':'SPECIAL CHALLENGES · EXPONENTIAL GROWTH',
+            'special_01 可直接挑戰；通關後依序解鎖 special_02、special_03。三關皆為三層樹狀結構。':'Special 01 is available immediately. Clear it to unlock Special 02, then Special 03. All three use three-layer tree structures.',
+            '不可能的任務':'IMPOSSIBLE MISSION','真・勒拿九頭蛇':'The True Lernaean Hydra','THE TRUE LERNAEAN HYDRA':'THE TRUE LERNAEAN HYDRA',
+            '砍伐機制說明：':'HOW CHOPPING WORKS:', '根部蛇頭：':'Root heads:','直接連接在星球上的蛇頭，砍掉後直接消滅，不引發增生。':'Heads attached directly to the planet disappear when chopped and do not trigger growth.',
+            '分支蛇頭：':'Branch heads:','生長於頸部分支上的蛇頭，砍掉後該蛇頭消失，其所屬頸部分支會':'Heads growing on branches disappear when chopped, and their neck branch is',
+            '複製 2 份重新接回祖父節點':'duplicated twice and reattached to its grandparent node',
+            '通關保證：':'CLEARING GUARANTEE:','每關都有「最糟砍擊次數」上限，逐關遞增，第 10 關無論怎麼亂砍都不會超過 911 次。':'Every level has an upper bound on the worst-case number of chops. It increases by level; Level 10 takes no more than 911 chops, regardless of chop order.',
+            '根節點':'Root-Level Head','第二層節點':'Second-Level Head','第三層節點':'Third-Level Head',
+            '上一頁':'Previous','下一頁':'Next','重新播放':'Replay','關卡提示':'Level Briefing','開始挑戰':'Start Challenge',
+            '成功封印九頭蛇的全部 9 顆初始蛇頭！':'You have defeated all 9 original hydra heads!', '您的總砍擊次數':'TOTAL CHOPS',
+            '重玩本關':'Retry Level','下一關':'Next Level','有尚未結束的遊戲，是否繼續？':'You have an unfinished game. Resume it?',
+            '已保存的遊戲進度':'Saved game progress','繼續':'Resume','放棄':'Discard','遊戲已暫停':'Game Paused',
+            '暫停期間不能砍蛇頭，計時也會停止。':'You cannot chop heads while paused, and the timer is stopped.',
+            '繼續遊戲':'Resume Game','保存並回到選關畫面':'Save and Return to Level Select',
+            '關閉遊戲規則':'Close game rules','九頭蛇枝幹砍擊與增生循環動畫':'Hydra branch chopping and regrowth animation',
+            '最快通關時間：尚無紀錄':'Best time: No record yet','已通關':'Cleared','特別挑戰 I：':'Special Challenge I:','特別挑戰 II：':'Special Challenge II:','特別挑戰 III：':'Special Challenge III:',
+            '不可能的任務：真・勒拿九頭蛇':'Impossible Mission: The True Lernaean Hydra',
+            '不可能的任務 · 終極挑戰':'IMPOSSIBLE MISSION · FINAL CHALLENGE',
+            '本關有':'This level has ','9 顆初始蛇頭':'9 original heads','9 顆蛇頭':'9 heads','，全部位於第二層節點，並透過根部頸部連接星球。砍掉第二層蛇頭時，該分支會依照原有規則增生。':', all located at second-level nodes and connected to the planet through a shared root neck. Chopping a second-level head triggers regrowth according to the usual rules.',
+            '大爆炸技能遵守原始規則：只能消滅直接連接星球、且本身就是蛇頭的根部節點。本關沒有這種蛇頭，因此技能框會顯示，但無法使用。':'The Big Bang skill follows the original rule: it only removes root nodes that are themselves heads and are directly connected to the planet. This level has no such heads, so the skill is shown but cannot be used.',
+            '挑戰目標：在九頭蛇不斷增生的情況下，持續砍擊直到所有蛇頭消失。':'Objective: Keep chopping as the hydra regrows until every head is gone.',
+            '柯比－巴黎數量爆炸挑戰':'Kirby–Paris Exponential Growth Challenge',
+            '本系列初始有':'This challenge starts with ','顆蛇頭':' heads.','。special_02 是單一蛇身，9 顆頭全部在第二層；special_03 則有兩條蛇，第一條有 3 顆第二層頭及一條帶 2 顆頭的第三層分枝，第二條有 4 顆第二層頭。':'. Special 02 has one body, with all 9 heads on the second level. Special 03 has two hydras: the first has 3 second-level heads and a third-level branch with 2 heads; the second has 4 second-level heads.',
+            '依目前增生規則推算的最糟步數：':'Worst-case chop count estimated under the current regrowth rules: ','2,000 次以下（仍需獨立驗證）':'under 2,000 chops (independent verification still required)','最糟 9,841 次，低於 10,000 次上限':'Worst case: 9,841 chops, below the 10,000-chop cap','最糟 161 次，低於 5,000 次上限':'Worst case: 161 chops, below the 5,000-chop cap',
+            'special_02：9,841 次；special_03：161 次。special_01 的步數上界仍需另外驗證。':'Special 02: 9,841 chops; Special 03: 161 chops. The upper bound for Special 01 still needs separate verification.',
+            '第 1 關說明：':'Level 1 briefing:','本關有 ':'This level has ','，全部直接生長於星球根部。砍掉根部蛇頭即直接消滅，':' heads, all growing directly from the planet. Chopping a root head removes it immediately, ', '不會增生':'with no regrowth','精準砍擊 9 次即可輕鬆通關！（最多 9 次）':'Chop exactly 9 times to clear the level! (Maximum: 9 chops)',
+            '第 ':'Level ',' 關提示：':' briefing:','本關初始同樣有 ':'This level also starts with ','，但分佈在不同的頸部分支與深度。砍掉分支頭會使該子樹':' heads, distributed across branches and depths. Chopping a branch head causes its subtree to ',
+            '複製 2 份':'duplicate twice','！請謹慎規劃砍擊順序！':'! Plan your chops carefully!',
+            '保證：無論怎麼砍，':'Guaranteed: Regardless of chop order, ',' 次':' chops','內一定能通關。':' or fewer are enough to clear the level.',
+            '本次用時：':'Time this run: ','　｜　最快紀錄：':'  |  Best time: ',
+            '第 1 關心得：':'Level 1 insight:','9 顆頭全部直接長在星球表面（根部）。砍掉直接死掉不增生，只需砍 9 次即通關！':'All 9 heads grow directly from the planet (the roots). They disappear when chopped and do not regrow, so only 9 chops are needed!',
+            '第 2 關心得：':'Level 2 insight:','7 顆根部頭加上 1 條雙頭分支。第一次體驗「砍分支頭 → 頸部複製」的增生，但規模仍然很小。':'Seven root heads and one two-headed branch. Experience regrowth for the first time: chop a branch head and the neck is copied. The scale is still small.',
+            '第 3 關心得：':'Level 3 insight:','3 條雙頭分支。每砍一個分支頭，那條頸部就變成 3 條，蛇頭數開始有感地成長。':'Three two-headed branches. Each chopped branch head turns its neck into three copies, and the number of heads starts to grow noticeably.',
+            '第 4 關心得：':'Level 4 insight:','分支頭變多、單條分支變粗。頭越多的分支，增生出來的份數越驚人。':'More branch heads and thicker branches. The more heads a branch has, the more dramatic its regrowth becomes.',
+            '第 5 關心得：':'Level 5 insight:','三條三頭分支。每一條都會以 3→3×2→3×3… 的方式展開，總共需要的砍擊數固定為 120 次。':'Three three-headed branches. Each expands as 3 → 3×2 → 3×3… The total number of chops required is exactly 120.',
+            '第 6 關心得：':'Level 6 insight:','出現「雙層分支」(一頭＋一條小分支)。從哪裡下刀開始有差別，但最糟也不超過 190 次。':'Two-layer branches appear (one head plus a smaller branch). Chop order now matters, but the worst case is still no more than 190 chops.',
+            '第 7 關心得：':'Level 7 insight:','雙層分支搭配三頭、四頭分支。優先處理小分支底下的頭，能避免它們被不斷複製。':'Two-layer branches combine with three- and four-headed branches. Chopping heads beneath smaller branches first can prevent repeated copying.',
+            '第 8 關心得：':'Level 8 insight:','四頭與五頭的大分支。頭數越多的頸部，增生次數呈 3 的次方成長，這是耐心的考驗！':'Large four- and five-headed branches. Regrowth along necks with more heads grows as powers of 3—a test of patience!',
+            '第 9 關心得：':'Level 9 insight:','多個雙層分支與一條「兩頭＋小分支」的粗頸。砍擊順序決定你是 600 次通關，還是更省力。':'Several two-layer branches and a thick neck with two heads plus a small branch. Chop order determines whether you need around 600 chops or fewer.',
+            '第 10 關終極心得：':'Level 10 final insight:','最終試煉！無論怎麼砍，911 次以內必定通關——這就是柯比-巴黎定理：九頭蛇再會長，也註定被消滅！':'The final trial! No matter how you chop, you will clear it within 911 chops. This is the Kirby–Paris theorem: however much the hydra grows, it is destined to be defeated!',
+            '特別挑戰 I：':'Special Challenge I:','三層樹狀分支開始讓每次增生帶出更多後續分支。目標是把最糟砍擊次數控制在 2,000 次以下；此數值需以窮舉／程式驗證後才能視為嚴格上界。':'Three-layer branches cause each regrowth to produce more subsequent branches. The goal is to keep the worst-case chops below 2,000; this must be verified by exhaustive or programmatic analysis before it can be treated as a strict upper bound.',
+            '特別挑戰 II：':'Special Challenge II:','共 9 顆初始頭、兩條蛇。第一條蛇有 1 顆第二層頭，以及 2 顆各自沿三段蛇頸連回根部的第三層頭；第二條蛇有 6 顆第二層頭。':'There are 9 initial heads across two hydras. The first has one second-level head and two third-level heads, each connected to the root by three neck segments; the second has six second-level heads.',
+            '特別挑戰 III：':'Special Challenge III:','共 9 顆初始頭、兩條蛇。第一條蛇有 2 顆第二層頭與 2 顆各自位於第三層的頭；第二條蛇有 4 顆第二層頭與 1 顆第三層頭。':'There are 9 initial heads across two hydras. The first has two second-level heads and two third-level heads; the second has four second-level heads and one third-level head.',
+            '真・勒拿九頭蛇：':'The True Lernaean Hydra:','九顆初始蛇頭全部位於第二層節點，並透過同一條根部頸部連接星球。大爆炸技能遵守原始規則：只消滅直接連接星球、且本身就是蛇頭的根部節點，因此本關雖會顯示技能框，但因沒有符合條件的蛇頭而無法使用。':'All nine initial heads are at second-level nodes and connect to the planet through the same root neck. The Big Bang skill follows the original rule: it only removes root nodes that are themselves heads and directly connected to the planet. This level has no such heads, so the skill appears but cannot be used.',
+            '根節點':'Root Node','第二層節點':'Second-Level Node','第三層節點':'Third-Level Node',
+            '最快通關時間：':'Best time: ',' 次':' chops',' 次內':' chops or fewer',
+            '大爆炸技能區':'Big Bang skill area','大爆炸技能，消滅所有直接連接星球的蛇頭':'Big Bang skill: remove all heads directly connected to the planet',
+            '大爆炸：消滅所有直接連接星球的蛇頭（冷卻 30 秒）':'Big Bang: Remove all heads directly connected to the planet (30-second cooldown)',
+            '暫停遊戲':'Pause game','關閉遊戲規則':'Close game rules'
+        };
+        const EN_ATTRS = {
+            '暫停遊戲':'Pause game', '大爆炸技能區':'Big Bang skill area',
+            '大爆炸技能，消滅所有直接連接星球的蛇頭':'Big Bang skill: remove all heads directly connected to the planet',
+            '大爆炸：消滅所有直接連接星球的蛇頭（冷卻 30 秒）':'Big Bang: Remove all heads directly connected to the planet (30-second cooldown)',
+            '關閉遊戲規則':'Close game rules','九頭蛇枝幹砍擊與增生循環動畫':'Hydra branch chopping and regrowth animation'
+        };
+        function translateText(source) {
+            const trimmed = source.trim();
+            if (EN_TEXT[trimmed] !== undefined) return source.slice(0, source.indexOf(trimmed)) + EN_TEXT[trimmed] + source.slice(source.indexOf(trimmed) + trimmed.length);
+            if (EN_TEXT[source] !== undefined) return EN_TEXT[source];
+            let out = source;
+            out = out.replace(/^關卡 (\d+) 挑戰提示$/, 'Level $1 Briefing');
+            out = out.replace(/^關卡 (\d+)｜已砍 (\d+) 次｜用時 (.+)$/, 'Level $1 | Chops: $2 | Time: $3');
+            out = out.replace(/^(\d+) 次$/, '$1 chops');
+            out = out.replace(/^大爆炸冷卻中，還需 (\d+) 秒$/, 'Big Bang cooldown: $1s remaining');
+            out = out.replace(/^最快通關時間：(.+)$/, 'Best time: $1');
+            out = out.replace(/^第 (\d+) 關提示：$/, 'Level $1 Briefing:');
+            out = out.replace(/^第 (\d+) 關心得：$/, 'Level $1 Insight:');
+            out = out.replace(/^第 (\d+) 關終極心得：$/, 'Level $1 Final Insight:');
+            out = out.replace(/^本次用時：(.+)　｜　最快紀錄：(.+)$/, 'Time this run: $1 | Best time: $2');
+            out = out.replace(/^特別挑戰 (\d+)：數量爆炸$/, 'Special Challenge $1: Exponential Growth');
+            out = out.replace(/^關卡 (\d+) 挑戰提示$/, 'Level $1 Briefing');
+            return out;
+        }
+        function applyLanguage() {
+            document.documentElement.lang = uiLanguage === 'en' ? 'en' : 'zh-TW';
+            document.title = uiLanguage === 'en' ? 'The Lernaean Hydra vs. Hercules' : '勒拿九頭蛇v.s.海克力斯';
+            document.querySelectorAll('body *').forEach(el => {
+                for (const attr of ['title', 'aria-label']) {
+                    if (el.hasAttribute(attr)) {
+                        if (!el.dataset['zh' + attr.replace(/[^a-z]/gi,'')]) el.dataset['zh' + attr.replace(/[^a-z]/gi,'')] = el.getAttribute(attr);
+                        const key = 'zh' + attr.replace(/[^a-z]/gi,'');
+                        const original = el.dataset[key];
+                        el.setAttribute(attr, uiLanguage === 'en' ? (EN_ATTRS[original] || translateText(original)) : original);
+                    }
+                }
+            });
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            const nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            nodes.forEach(node => {
+                if (!node.__hydraOriginalText) node.__hydraOriginalText = node.nodeValue;
+                const original = node.__hydraOriginalText;
+                if (uiLanguage === 'zh') node.nodeValue = original;
+                else node.nodeValue = translateText(original);
+            });
+            ['btn-language-game', 'btn-language-menu'].forEach(id => {
+                const button = document.getElementById(id);
+                if (button) button.textContent = uiLanguage === 'zh' ? '🌐 English' : '🌐 繁體中文';
+            });
+        }
+        function toggleLanguage() {
+            uiLanguage = uiLanguage === 'zh' ? 'en' : 'zh';
+            applyLanguage();
+        }
+
         /* Bind DOM Buttons */
         document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('btn-language-game').addEventListener('click', toggleLanguage);
+            document.getElementById('btn-language-menu').addEventListener('click', toggleLanguage);
+            applyLanguage();
             init3D();
 
             document.getElementById('btn-open-rules').addEventListener('click', openRules);
